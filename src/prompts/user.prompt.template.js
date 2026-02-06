@@ -1,58 +1,42 @@
-/**
- * Genera el prompt de usuario basado en opciones específicas
- * @param {Object} opciones - Configuración de extracción
- * @returns {string} - Prompt formateado
- */
 function generateUserPrompt(opciones = {}) {
   const {
     extraer_diagnostico = true,
     detectar_urgencias = true,
-    validar_matricula = false
+    validar_matricula = false,
+    contextoRAG = ''
   } = opciones;
 
-  let prompt = `Analiza esta orden médica y extrae la información según las instrucciones del sistema.
+  let prompt = `Analiza esta orden médica y extrae la información según las instrucciones del sistema.\n\n`;
 
-## CONFIGURACIÓN DE ANÁLISIS
+  if (contextoRAG) {
+    prompt += `## REFERENCIA DE NOMENCLADOR (Base de Datos)\n\n`;
+    prompt += `Usa estas prácticas conocidas como referencia para mapear lo que veas en la orden:\n\n`;
+    prompt += contextoRAG;
+    prompt += `\nSi detectas prácticas similares a las de arriba, usa preferentemente esas descripciones estandarizadas.\n\n`;
+  }
 
-`;
+  prompt += `## CONFIGURACIÓN\n\n`;
 
   if (extraer_diagnostico) {
-    prompt += `✓ Extraer diagnóstico presuntivo y observaciones clínicas
-`;
-  } else {
-    prompt += `✗ No es necesario extraer diagnóstico (enfócate en datos básicos)
-`;
+    prompt += `- Extraer diagnóstico presuntivo y observaciones clínicas\n`;
   }
 
   if (detectar_urgencias) {
-    prompt += `✓ Detectar indicadores de urgencia (URGENTE, STAT, etc.)
-`;
-  } else {
-    prompt += `✗ No analizar urgencias
-`;
+    prompt += `- Detectar indicadores de urgencia\n`;
   }
 
   if (validar_matricula) {
-    prompt += `✓ CRÍTICO: Validación estricta de matrícula profesional requerida
-   - Busca con alta precisión el número de matrícula
-   - Si no encuentras matrícula, marca requiere_revision_humana = true
-   - Agrega advertencia si la matrícula es ambigua
-`;
+    prompt += `- CRITICO: Validación estricta de matrícula. Si no encuentras matrícula, marca requiere_revision_humana = true\n`;
   }
 
-  prompt += `
-## INSTRUCCIONES ESPECÍFICAS
-
-1. Analiza la imagen cuidadosamente
-2. Identifica el tipo de escritura y legibilidad
-3. Extrae TODOS los campos visibles
-4. Usa contexto médico para inferencias razonables
-5. Marca claramente en "advertencias" cualquier incertidumbre
-6. Si la orden es muy ilegible (legibilidad BAJA), marca requiere_revision_humana = true
-
-## RECORDATORIO
-
-Devuelve ÚNICAMENTE un JSON válido sin texto adicional, siguiendo exactamente el esquema definido en el system prompt.`;
+  prompt += `\n## INSTRUCCIONES\n\n`;
+  prompt += `1. Analiza la imagen cuidadosamente\n`;
+  prompt += `2. Identifica tipo de escritura y legibilidad\n`;
+  prompt += `3. Extrae TODOS los campos visibles\n`;
+  prompt += `4. Usa contexto médico para inferencias razonables\n`;
+  prompt += `5. Marca en "advertencias" cualquier incertidumbre\n`;
+  prompt += `6. Si la orden es muy ilegible (legibilidad BAJA), marca requiere_revision_humana = true\n\n`;
+  prompt += `Devuelve ÚNICAMENTE JSON válido siguiendo el esquema del system prompt.`;
 
   return prompt;
 }

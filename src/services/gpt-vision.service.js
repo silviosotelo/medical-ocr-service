@@ -1,162 +1,240 @@
-// services/gpt-vision.service.js
-const OpenAI = require('openai');
+const openai = require('../config/openai.config');
+const logger = require('../config/logger.config');
+const { retryWithBackoff } = require('../utils/retry');
+const { trackTokenUsage } = require('../utils/metrics');
+const { OPENAI } = require('../utils/constants');
+const SYSTEM_PROMPT = require('../prompts/system.prompt');
+const generateUserPrompt = require('../prompts/user.prompt.template');
+const imageService = require('./image.service');
+const pdfService = require('./pdf.service');
 const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
-const logger = require('../config/logger.config');
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
 
 class GPTVisionService {
-  async processOrder(imagePath) {
+  async processOrder(imagePath, opciones = {}) {
+    const startTime = Date.now();
+
     try {
       logger.info('Procesando orden con GPT-4o Vision', { imagePath });
 
-      // Leer archivo
       const imageBuffer = await fs.readFile(imagePath);
-      const base64Image = imageBuffer.toString('base64');
-      const mimeType = this.getMimeType(imagePath);
-
-      // Generar hash
       const hash = crypto.createHash('sha256').update(imageBuffer).digest('hex');
 
-      // Llamar a GPT-4o Vision
-      const response = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: `Eres un asistente experto en extraer información de órdenes médicas.
-Extrae la siguiente información en formato JSON:
-{
-  "paciente": {
-    "nombre": "string",
-    "ci": "string",
-    "edad": "number o null",
-    "sexo": "M o F o null"
-  },
-  "prestador": {
-    "nombre": "string",
-    "matricula": "string o null"
-  },
-  "fecha_orden": "YYYY-MM-DD",
-  "diagnostico": "string",
-  "practicas": [
-    {
-      "descripcion": "string",
-      "cantidad": "number"
-    }
-  ]
-}
+      let base64Image;
+      let mimeType = this.getMimeType(imagePath);
 
-Reglas:
-- Si no encuentras un dato, usar null
-- Nombres en mayúsculas
-- CI sin puntos ni guiones
-- Fecha en formato ISO
-- Prácticas: extraer todas las que veas`
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Extrae toda la información de esta orden médica:'
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType};base64,${base64Image}`
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 2000,
-        temperature: 0.1
-      });
-
-      const content = response.choices[0].message.content;
-      
-      // Parsear JSON
-      let resultado;
-      try {
-        // Intentar extraer JSON del contenido
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          resultado = JSON.parse(jsonMatch[0]);
-        } else {
-          resultado = JSON.parse(content);
-        }
-      } catch (error) {
-        logger.error('Error parseando respuesta GPT', { content });
-        throw new Error('No se pudo parsear la respuesta de GPT-4o');
+      if (mimeType === 'application/pdf') {
+        const pdfResult = await pdfService.convertToImage(imagePath);
+        const imgBuffer = await fs.readFile(pdfResult.imagePath);
+        base64Image = imgBuffer.toString('base64');
+        mimeType = 'image/jpeg';
+        try { await fs.unlink(pdfResult.imagePath); } catch (e) { /* ignore */ }
+      } else {
+        const processed = await imageService.processImage(imageBuffer);
+        base64Image = processed.base64 || imageBuffer.toString('base64');
+        mimeType = processed.mimeType || mimeType;
       }
 
-      // Validar y normalizar
-      resultado = this.normalizarResultado(resultado);
+      const contextoRAG = opciones.contextoRAG || '';
+      const userPrompt = generateUserPrompt({
+        ...opciones,
+        contextoRAG
+      });
 
-      // Calcular confianza
-      const confianzaGeneral = this.calcularConfianza(resultado);
+      const response = await retryWithBackoff(
+        async () => {
+          return await openai.chat.completions.create({
+            model: process.env.FINE_TUNED_MODEL || OPENAI.MODEL,
+            messages: [
+              {
+                role: 'system',
+                content: SYSTEM_PROMPT
+              },
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: userPrompt
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: {
+                      url: `data:${mimeType};base64,${base64Image}`,
+                      detail: OPENAI.DETAIL_LEVEL
+                    }
+                  }
+                ]
+              }
+            ],
+            max_tokens: OPENAI.MAX_TOKENS,
+            temperature: OPENAI.TEMPERATURE,
+            response_format: { type: 'json_object' }
+          });
+        },
+        OPENAI.RETRY_ATTEMPTS,
+        OPENAI.RETRY_DELAY_MS
+      );
+
+      const processingTime = Date.now() - startTime;
+      const content = response.choices[0].message.content;
+
+      let parsedData;
+      try {
+        parsedData = JSON.parse(content);
+      } catch (parseError) {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          parsedData = JSON.parse(jsonMatch[0]);
+        } else {
+          logger.error('GPT-4o devolvió JSON inválido', { content });
+          throw new Error('IA devolvió respuesta inválida');
+        }
+      }
+
+      trackTokenUsage({
+        promptTokens: response.usage.prompt_tokens,
+        completionTokens: response.usage.completion_tokens,
+        totalTokens: response.usage.total_tokens,
+        model: response.model,
+        processingTimeMs: processingTime
+      });
+
+      const resultado = this.normalizarResultado(parsedData);
+      const confianzaGeneral = this.calcularConfianza(resultado, parsedData);
+
+      logger.info('Orden procesada exitosamente', {
+        processingTimeMs: processingTime,
+        tokensUsed: response.usage.total_tokens,
+        confianza: confianzaGeneral,
+        tipoEscritura: parsedData?.metadatos?.tipo_escritura,
+        practicas: resultado.practicas?.length || 0
+      });
 
       return {
         ...resultado,
+        metadatos_ia: parsedData.metadatos || {},
+        observaciones_ia: parsedData.observaciones || {},
+        resultado_completo: parsedData,
         hash_imagen: hash,
         metadata: {
           modelo: response.model,
+          tokens_prompt: response.usage.prompt_tokens,
+          tokens_completion: response.usage.completion_tokens,
           tokens_usados: response.usage.total_tokens,
+          tiempo_procesamiento_ms: processingTime,
           confianza_general: confianzaGeneral,
+          finish_reason: response.choices[0].finish_reason,
           timestamp: new Date().toISOString()
         }
       };
 
     } catch (error) {
-      logger.error('Error procesando orden con GPT Vision', { 
+      const processingTime = Date.now() - startTime;
+      logger.error('Error procesando orden con GPT Vision', {
         error: error.message,
-        stack: error.stack 
+        stack: error.stack,
+        processingTimeMs: processingTime
       });
+
+      if (error.status === 429) {
+        throw new Error('Rate limit excedido en OpenAI - intente nuevamente en unos segundos');
+      }
+      if (error.status === 400) {
+        throw new Error('Imagen inválida para OpenAI API - verifique el formato');
+      }
+      if (error.status === 401) {
+        throw new Error('API Key de OpenAI inválida o expirada');
+      }
+
       throw error;
     }
   }
 
-  normalizarResultado(resultado) {
+  normalizarResultado(parsedData) {
+    const cabecera = parsedData.cabecera || {};
+    const detalle = parsedData.detalle_practicas || [];
+
+    const paciente = cabecera.paciente || parsedData.paciente || {};
+    const medico = cabecera.medico || parsedData.prestador || {};
+    const practicasRaw = detalle.length > 0 ? detalle : (parsedData.practicas || []);
+
     return {
       paciente: {
-        nombre: resultado.paciente?.nombre || null,
-        ci: resultado.paciente?.ci?.replace(/[.-]/g, '') || null,
-        edad: resultado.paciente?.edad || null,
-        sexo: resultado.paciente?.sexo || null
+        nombre: paciente.nombre || null,
+        ci: paciente.identificacion?.replace(/[.-]/g, '') || paciente.ci?.replace(/[.-]/g, '') || null,
+        tipo_identificacion: paciente.tipo_identificacion || 'CI',
+        edad: paciente.edad || null,
+        sexo: paciente.sexo || null,
+        numero_afiliado: paciente.numero_afiliado || null
       },
-      prestador: {
-        nombre: resultado.prestador?.nombre || null,
-        matricula: resultado.prestador?.matricula || null
+      prestador_emisor: {
+        nombre: medico.nombre || null,
+        matricula: medico.matricula || null,
+        especialidad: medico.especialidad_inferida || medico.especialidad || null,
+        ruc: medico.ruc || null
       },
-      fecha_orden: resultado.fecha_orden || new Date().toISOString().split('T')[0],
-      diagnostico: resultado.diagnostico || null,
-      practicas: (resultado.practicas || []).map(p => ({
+      medico_solicitante: {
+        nombre_completo: medico.nombre || null,
+        matricula_nacional: medico.matricula || null,
+        especialidad: medico.especialidad_inferida || medico.especialidad || null
+      },
+      fecha_orden: cabecera.fecha_emision || parsedData.fecha_orden || null,
+      diagnostico: {
+        descripcion: cabecera.diagnostico_presuntivo || (typeof parsedData.diagnostico === 'string' ? parsedData.diagnostico : parsedData.diagnostico?.descripcion) || null,
+        codigo_cie10: parsedData.diagnostico?.codigo_cie10 || null
+      },
+      institucion: cabecera.institucion_solicitante || null,
+      practicas: practicasRaw.map(p => ({
         descripcion: p.descripcion,
-        cantidad: p.cantidad || 1
-      }))
+        descripcion_original: p.descripcion,
+        cantidad: p.cantidad || 1,
+        codigo_sugerido: p.codigo_sugerido || null,
+        nomenclador: p.nomenclador || null,
+        confianza: p.confianza || 0.8,
+        prestador_ejecutor: p.prestador_ejecutor || null
+      })),
+      orden: {
+        fecha_emision: cabecera.fecha_emision || parsedData.fecha_orden || null
+      }
     };
   }
 
-  calcularConfianza(resultado) {
+  calcularConfianza(resultado, parsedData) {
+    if (parsedData?.metadatos?.confianza_ia) {
+      return parsedData.metadatos.confianza_ia;
+    }
+
     let score = 0;
     let total = 0;
 
-    // Paciente
-    if (resultado.paciente?.nombre) { score++; total++; } else { total++; }
-    if (resultado.paciente?.ci) { score++; total++; } else { total++; }
+    const checks = [
+      { val: resultado.paciente?.nombre, weight: 2 },
+      { val: resultado.paciente?.ci, weight: 2 },
+      { val: resultado.prestador_emisor?.nombre, weight: 1.5 },
+      { val: resultado.prestador_emisor?.matricula, weight: 1 },
+      { val: resultado.fecha_orden, weight: 0.5 },
+      { val: resultado.diagnostico?.descripcion, weight: 0.5 },
+      { val: resultado.practicas?.length > 0, weight: 3 }
+    ];
 
-    // Prestador
-    if (resultado.prestador?.nombre) { score++; total++; } else { total++; }
+    for (const check of checks) {
+      total += check.weight;
+      if (check.val) score += check.weight;
+    }
 
-    // Prácticas
-    if (resultado.practicas?.length > 0) { score++; total++; } else { total++; }
+    if (resultado.practicas?.length > 0) {
+      const avgPracticaConf = resultado.practicas.reduce((sum, p) => sum + (p.confianza || 0.8), 0) / resultado.practicas.length;
+      score += avgPracticaConf * 2;
+      total += 2;
+    }
 
-    return total > 0 ? score / total : 0;
+    const legibilidad = parsedData?.metadatos?.legibilidad;
+    if (legibilidad === 'BAJA') score *= 0.7;
+    else if (legibilidad === 'MEDIA') score *= 0.85;
+
+    return Math.min(Math.round((score / total) * 100) / 100, 1.0);
   }
 
   getMimeType(filePath) {
@@ -165,6 +243,8 @@ Reglas:
       '.jpg': 'image/jpeg',
       '.jpeg': 'image/jpeg',
       '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
       '.pdf': 'application/pdf'
     };
     return mimeTypes[ext] || 'image/jpeg';

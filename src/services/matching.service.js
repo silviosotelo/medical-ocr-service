@@ -178,7 +178,7 @@ class MatchingService {
           ruc,
           registro_profesional
         FROM prestadores
-        WHERE (matricula_nacional = $1 OR registro_profesional = $1)
+        WHERE registro_profesional = $1
         AND estado = 'ACTIVO'
         LIMIT 1
       `, [matricula]);

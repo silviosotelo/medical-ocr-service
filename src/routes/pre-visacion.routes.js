@@ -29,4 +29,7 @@ router.post('/preview/:id/rechazar', preVisacionController.rechazar);
 // POST /api/visar/preview/detalle/:idDetalle/corregir
 router.post('/preview/detalle/:idDetalle/corregir', preVisacionController.corregirNomenclador);
 
+// GET /api/visar/preview/estadisticas
+router.get('/preview/estadisticas', preVisacionController.obtenerEstadisticas);
+
 module.exports = router;

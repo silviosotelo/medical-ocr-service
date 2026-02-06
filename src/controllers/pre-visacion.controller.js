@@ -1,6 +1,6 @@
-// controllers/pre-visacion.controller.js
 const preVisacionService = require('../services/pre-visacion.service');
 const gptVisionService = require('../services/gpt-vision.service');
+const ragService = require('../services/rag.service');
 const feedbackService = require('../services/feedback.service');
 const logger = require('../config/logger.config');
 const axios = require('axios');
@@ -9,50 +9,40 @@ const path = require('path');
 const os = require('os');
 
 class PreVisacionController {
-  /**
-   * POST /api/visar/preview
-   * Procesar orden médica con upload y generar pre-visación
-   */
   async procesarOrdenYPreVisar(req, res) {
     try {
-      if (!req.files || !req.files.archivo) {
+      if (!req.file) {
         return res.status(400).json({
           status: 'error',
-          message: 'No se recibió archivo'
+          message: 'No se recibió archivo. Use campo "archivo" en multipart/form-data'
         });
       }
 
-      const archivo = req.files.archivo;
+      const archivo = req.file;
 
       logger.info('Procesando orden para pre-visación', {
-        archivo: archivo.name,
+        archivo: archivo.originalname,
         size: archivo.size
       });
 
-      // 1. Procesar con GPT-4o Vision
-      const resultadoIA = await gptVisionService.processOrder(archivo.tempFilePath);
+      const resultadoIA = await gptVisionService.processOrder(archivo.path);
 
-      // 2. Guardar en ordenes_procesadas
       const ordenId = await feedbackService.guardarOrdenProcesada({
-        archivoNombre: archivo.name,
-        archivoPath: archivo.tempFilePath,
+        archivoNombre: archivo.originalname,
+        archivoPath: archivo.path,
+        archivoTipo: archivo.mimetype,
         resultadoIA: resultadoIA,
-        hashImagen: resultadoIA.hash_imagen,
-        confianzaPromedio: resultadoIA.metadata?.confianza_general,
-        validado: false
+        modeloUsado: resultadoIA.metadata?.modelo || 'gpt-4o',
+        tokensUsados: resultadoIA.metadata?.tokens_usados || 0,
+        tiempoProcesamiento: resultadoIA.metadata?.tiempo_procesamiento_ms || 0,
+        confianzaPromedio: resultadoIA.metadata?.confianza_general || 0
       });
 
-      // 3. Generar pre-visación completa
       const preVisacion = await preVisacionService.generarPreVisacion(ordenId, resultadoIA);
 
-      // 4. URL para APEX
-      const urlApex = `${process.env.APEX_URL}/apex/f?p=${process.env.APEX_APP_ID}:APROBAR_PREVISACION:SESSION::NO::P_ID:${preVisacion.id_visacion_previa}`;
-
-      logger.info('Pre-visación generada', {
-        ordenId,
-        preVisacionId: preVisacion.id_visacion_previa,
-        confianza: preVisacion.confianza_general
-      });
+      const urlApex = process.env.APEX_URL
+        ? `${process.env.APEX_URL}/apex/f?p=${process.env.APEX_APP_ID}:APROBAR_PREVISACION:SESSION::NO::P_ID:${preVisacion.id_visacion_previa}`
+        : null;
 
       return res.status(200).json({
         status: 'success',
@@ -72,10 +62,6 @@ class PreVisacionController {
     }
   }
 
-  /**
-   * POST /api/visar/preview-url
-   * Procesar orden médica desde URL pública (usado por Oracle)
-   */
   async procesarOrdenDesdeURL(req, res) {
     let tempFilePath = null;
 
@@ -91,18 +77,16 @@ class PreVisacionController {
 
       logger.info('Procesando orden desde URL', { archivo_url });
 
-      // 1. Descargar archivo desde URL
       const response = await axios.get(archivo_url, {
         responseType: 'arraybuffer',
         timeout: 30000,
         maxContentLength: 10 * 1024 * 1024,
-        headers: { 'User-Agent': 'SantaClara-PreVisacion/1.0' }
+        headers: { 'User-Agent': 'SantaClara-PreVisacion/2.0' }
       });
 
-      // 2. Determinar extensión
       const contentType = response.headers['content-type'];
       let extension = '.jpg';
-      
+
       if (contentType) {
         if (contentType.includes('pdf')) extension = '.pdf';
         else if (contentType.includes('png')) extension = '.png';
@@ -114,40 +98,24 @@ class PreVisacionController {
         }
       }
 
-      // 3. Guardar temporalmente
       tempFilePath = path.join(os.tmpdir(), `temp_orden_${Date.now()}${extension}`);
       await fs.writeFile(tempFilePath, response.data);
 
-      logger.info('Archivo descargado', {
-        tempFilePath,
-        size: response.data.length,
-        contentType
-      });
-
-      // 4. Procesar con GPT-4o Vision
       const resultadoIA = await gptVisionService.processOrder(tempFilePath);
 
-      // 5. Guardar en ordenes_procesadas
       const ordenId = await feedbackService.guardarOrdenProcesada({
         archivoNombre: path.basename(archivo_url),
         archivoPath: tempFilePath,
+        archivoTipo: contentType || 'image/jpeg',
         resultadoIA: resultadoIA,
-        hashImagen: resultadoIA.hash_imagen,
-        confianzaPromedio: resultadoIA.metadata?.confianza_general,
-        validado: false,
-        origen: 'oracle_apex_url'
+        modeloUsado: resultadoIA.metadata?.modelo || 'gpt-4o',
+        tokensUsados: resultadoIA.metadata?.tokens_usados || 0,
+        tiempoProcesamiento: resultadoIA.metadata?.tiempo_procesamiento_ms || 0,
+        confianzaPromedio: resultadoIA.metadata?.confianza_general || 0
       });
 
-      // 6. Generar pre-visación completa
       const preVisacion = await preVisacionService.generarPreVisacion(ordenId, resultadoIA);
 
-      logger.info('Pre-visación generada desde URL', {
-        ordenId,
-        preVisacionId: preVisacion.id_visacion_previa,
-        confianza: preVisacion.confianza_general
-      });
-
-      // 7. Respuesta para Oracle
       return res.status(200).json({
         status: 'success',
         data: {
@@ -164,30 +132,19 @@ class PreVisacionController {
 
       return res.status(500).json({
         status: 'error',
-        message: error.message,
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        message: error.message
       });
 
     } finally {
-      // Limpiar archivo temporal
       if (tempFilePath) {
-        try {
-          await fs.unlink(tempFilePath);
-        } catch (err) {
-          logger.warn('No se pudo eliminar archivo temporal', { tempFilePath });
-        }
+        try { await fs.unlink(tempFilePath); } catch (err) { /* ignore */ }
       }
     }
   }
 
-  /**
-   * GET /api/visar/preview/:id
-   * Obtener detalle de pre-visación
-   */
   async obtenerPreVisacion(req, res) {
     try {
       const { id } = req.params;
-
       const preVisacion = await preVisacionService.obtenerPreVisacion(parseInt(id));
 
       return res.status(200).json({
@@ -204,17 +161,14 @@ class PreVisacionController {
     }
   }
 
-  /**
-   * GET /api/visar/preview/pendientes
-   * Listar pre-visaciones pendientes
-   */
   async listarPendientes(req, res) {
     try {
       const filtros = {
         requiere_revision: req.query.requiere_revision === 'true' ? true :
           req.query.requiere_revision === 'false' ? false : undefined,
         desde: req.query.desde,
-        hasta: req.query.hasta
+        hasta: req.query.hasta,
+        ci_paciente: req.query.ci_paciente
       };
 
       const pendientes = await preVisacionService.listarPendientes(filtros);
@@ -234,10 +188,6 @@ class PreVisacionController {
     }
   }
 
-  /**
-   * POST /api/visar/preview/:id/aprobar
-   * Aprobar pre-visación
-   */
   async aprobar(req, res) {
     try {
       const { id } = req.params;
@@ -266,10 +216,6 @@ class PreVisacionController {
     }
   }
 
-  /**
-   * POST /api/visar/preview/:id/rechazar
-   * Rechazar pre-visación
-   */
   async rechazar(req, res) {
     try {
       const { id } = req.params;
@@ -302,10 +248,6 @@ class PreVisacionController {
     }
   }
 
-  /**
-   * POST /api/visar/preview/detalle/:idDetalle/corregir
-   * Corregir nomenclador en detalle
-   */
   async corregirNomenclador(req, res) {
     try {
       const { idDetalle } = req.params;
@@ -332,6 +274,24 @@ class PreVisacionController {
 
     } catch (error) {
       logger.error('Error corrigiendo nomenclador', { error: error.message });
+      return res.status(500).json({
+        status: 'error',
+        message: error.message
+      });
+    }
+  }
+
+  async obtenerEstadisticas(req, res) {
+    try {
+      const stats = await preVisacionService.obtenerEstadisticas();
+
+      return res.status(200).json({
+        status: 'success',
+        data: stats
+      });
+
+    } catch (error) {
+      logger.error('Error obteniendo estadísticas', { error: error.message });
       return res.status(500).json({
         status: 'error',
         message: error.message
