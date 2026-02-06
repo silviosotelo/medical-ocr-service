@@ -238,6 +238,68 @@ class TrainingController {
       });
     }
   }
+
+  async getTrainingHistory(req, res) {
+    try {
+      const history = await autoTrainingService.getTrainingHistory();
+
+      return res.status(200).json({
+        status: 'success',
+        count: history.length,
+        history
+      });
+    } catch (error) {
+      logger.error('Error obteniendo historial de training', { error: error.message });
+      return res.status(500).json({
+        status: 'error',
+        error: { code: 'HISTORY_ERROR', message: error.message }
+      });
+    }
+  }
+
+  async registrarFeedbackMatching(req, res) {
+    try {
+      const { visacion_previa_id, det_previa_id, tipo, descripcion_original, id_sugerido_ia, id_correcto, razon, usuario } = req.body;
+
+      if (!tipo || !id_correcto || !usuario) {
+        return res.status(400).json({
+          status: 'error',
+          error: { code: 'MISSING_FIELDS', message: 'Se requieren: tipo, id_correcto, usuario' }
+        });
+      }
+
+      const { query: dbQuery } = require('../config/database.config');
+      const result = await dbQuery(`
+        INSERT INTO feedback_matching (
+          visacion_previa_id, det_previa_id, tipo,
+          descripcion_original, id_sugerido_ia, id_correcto,
+          razon, usuario
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING id_feedback
+      `, [
+        visacion_previa_id || null,
+        det_previa_id || null,
+        tipo,
+        descripcion_original || null,
+        id_sugerido_ia || null,
+        id_correcto,
+        razon || null,
+        usuario
+      ]);
+
+      return res.status(201).json({
+        status: 'success',
+        id_feedback: result.rows[0].id_feedback,
+        message: 'Feedback registrado para training'
+      });
+    } catch (error) {
+      logger.error('Error registrando feedback de matching', { error: error.message });
+      return res.status(500).json({
+        status: 'error',
+        error: { code: 'FEEDBACK_ERROR', message: error.message }
+      });
+    }
+  }
 }
 
 module.exports = new TrainingController();

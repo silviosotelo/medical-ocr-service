@@ -65,4 +65,8 @@ router.get('/stats', trainingController.getEstadisticas);
  */
 router.post('/trigger', trainingController.triggerTraining);
 
+router.get('/history', trainingController.getTrainingHistory);
+
+router.post('/feedback-matching', trainingController.registrarFeedbackMatching);
+
 module.exports = router;
