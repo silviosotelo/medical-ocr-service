@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  medical-ocr-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: medical-ocr-service
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TEMP_DIR=/app/temp
+      - LOG_DIR=/app/logs
+      - MAX_FILE_SIZE_MB=10
+      - RATE_LIMIT_WINDOW_MS=60000
+      - RATE_LIMIT_MAX_REQUESTS=30
+      - LOG_LEVEL=info
+    volumes:
+      # Persistir logs
+      - ./logs:/app/logs
+      # Montar temp como volumen para mejor performance
+      - temp-data:/app/temp
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - medical-ocr-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  temp-data:
+    driver: local
+
+networks:
+  medical-ocr-network:
+    driver: bridge
