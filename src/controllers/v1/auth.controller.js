@@ -72,4 +72,19 @@ async function changePassword(req, res, next) {
   }
 }
 
-module.exports = { register, login, refresh, me, changePassword };
+async function permissions(req, res) {
+  const { ROLES } = require('../../middlewares/rbac.middleware');
+  const role = req.userRole || 'viewer';
+  const roleDef = ROLES[role] || ROLES.viewer;
+  res.json({
+    status: 'ok',
+    data: {
+      role,
+      label: roleDef.label,
+      level: roleDef.level,
+      permissions: roleDef.permissions,
+    },
+  });
+}
+
+module.exports = { register, login, refresh, me, changePassword, permissions };

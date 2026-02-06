@@ -20,23 +20,25 @@ async function initializeDirectories() {
   }
 }
 
-// Verificar dependencias del sistema
 async function checkSystemDependencies() {
   logger.info('Checking system dependencies...');
-  
+  const warnings = [];
+
   const popplerInstalled = await pdfService.checkDependencies();
-  
   if (!popplerInstalled) {
-    logger.error('CRITICAL: poppler-utils not installed. Run: sudo apt-get install poppler-utils');
-    process.exit(1);
+    warnings.push('poppler-utils not installed (PDF processing disabled). Install with: sudo apt-get install poppler-utils');
   }
 
   if (!process.env.OPENAI_API_KEY) {
-    logger.error('CRITICAL: OPENAI_API_KEY not configured in .env');
-    process.exit(1);
+    warnings.push('OPENAI_API_KEY not configured (AI features disabled)');
   }
 
-  logger.info('All system dependencies verified ✓');
+  if (warnings.length > 0) {
+    warnings.forEach((w) => logger.warn(w));
+    logger.info(`Server starting with ${warnings.length} warning(s) - some features unavailable`);
+  } else {
+    logger.info('All system dependencies verified');
+  }
 }
 
 // Iniciar servidor

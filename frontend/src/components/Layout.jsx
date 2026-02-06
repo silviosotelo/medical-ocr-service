@@ -3,24 +3,33 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Building2, Users, Key, FileText,
-  BarChart3, Database, Webhook, LogOut, Menu, X, ChevronDown,
+  BarChart3, Database, Webhook, LogOut, Menu, X, Shield,
 } from 'lucide-react';
 
-const nav = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/tenants', icon: Building2, label: 'Tenants' },
-  { to: '/users', icon: Users, label: 'Usuarios' },
-  { to: '/api-keys', icon: Key, label: 'API Keys' },
-  { to: '/orders', icon: FileText, label: 'Ordenes' },
-  { to: '/usage', icon: BarChart3, label: 'Uso' },
-  { to: '/data', icon: Database, label: 'Datos' },
-  { to: '/webhooks', icon: Webhook, label: 'Webhooks' },
+const NAV_ITEMS = [
+  { key: 'dashboard', to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { key: 'tenants', to: '/tenants', icon: Building2, label: 'Tenants' },
+  { key: 'users', to: '/users', icon: Users, label: 'Usuarios' },
+  { key: 'api-keys', to: '/api-keys', icon: Key, label: 'API Keys' },
+  { key: 'orders', to: '/orders', icon: FileText, label: 'Ordenes' },
+  { key: 'usage', to: '/usage', icon: BarChart3, label: 'Uso' },
+  { key: 'data', to: '/data', icon: Database, label: 'Datos' },
+  { key: 'webhooks', to: '/webhooks', icon: Webhook, label: 'Webhooks' },
 ];
 
+const ROLE_COLORS = {
+  super_admin: 'bg-red-100 text-red-700',
+  admin: 'bg-brand-100 text-brand-700',
+  operator: 'bg-amber-100 text-amber-700',
+  viewer: 'bg-gray-100 text-gray-600',
+};
+
 export default function Layout({ children }) {
-  const { user, logout } = useAuth();
+  const { user, logout, canAccessNav, roleConfig } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const visibleNav = NAV_ITEMS.filter((item) => canAccessNav(item.key));
 
   function handleLogout() {
     logout();
@@ -36,8 +45,8 @@ export default function Layout({ children }) {
         />
       )}
 
-      <aside className={`fixed lg:static inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex items-center gap-3 h-16 px-6 border-b border-gray-200">
+      <aside className={`fixed lg:static inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
+        <div className="flex items-center gap-3 h-16 px-6 border-b border-gray-200 flex-shrink-0">
           <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
             <span className="text-white font-bold text-sm">M</span>
           </div>
@@ -50,10 +59,10 @@ export default function Layout({ children }) {
           </button>
         </div>
 
-        <nav className="p-4 space-y-1">
-          {nav.map(({ to, icon: Icon, label }) => (
+        <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
+          {visibleNav.map(({ key, to, icon: Icon, label }) => (
             <NavLink
-              key={to}
+              key={key}
               to={to}
               end={to === '/'}
               onClick={() => setSidebarOpen(false)}
@@ -71,7 +80,13 @@ export default function Layout({ children }) {
           ))}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
+        <div className="p-4 border-t border-gray-200 flex-shrink-0 space-y-3">
+          <div className="flex items-center gap-2 px-3">
+            <Shield className="w-4 h-4 text-gray-400" />
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ROLE_COLORS[user?.role] || ROLE_COLORS.viewer}`}>
+              {roleConfig.label}
+            </span>
+          </div>
           <button
             onClick={handleLogout}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
@@ -83,7 +98,7 @@ export default function Layout({ children }) {
       </aside>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center px-6 gap-4">
+        <header className="h-16 bg-white border-b border-gray-200 flex items-center px-6 gap-4 flex-shrink-0">
           <button className="lg:hidden text-gray-500" onClick={() => setSidebarOpen(true)}>
             <Menu className="w-6 h-6" />
           </button>
@@ -96,7 +111,7 @@ export default function Layout({ children }) {
             </div>
             <div className="hidden sm:block">
               <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-              <p className="text-xs text-gray-500">{user?.role}</p>
+              <p className="text-xs text-gray-500">{user?.email}</p>
             </div>
           </div>
         </header>

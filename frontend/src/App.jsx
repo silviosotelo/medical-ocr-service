@@ -13,8 +13,20 @@ import WebhooksPage from './pages/WebhooksPage';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="flex items-center justify-center h-screen"><div className="animate-spin h-8 w-8 border-4 border-brand-600 border-t-transparent rounded-full" /></div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin h-8 w-8 border-4 border-brand-600 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
   if (!user) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function RoleRoute({ navKey, children }) {
+  const { canAccessNav } = useAuth();
+  if (!canAccessNav(navKey)) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -29,13 +41,13 @@ export default function App() {
             <Layout>
               <Routes>
                 <Route path="/" element={<DashboardPage />} />
-                <Route path="/tenants" element={<TenantsPage />} />
-                <Route path="/users" element={<UsersPage />} />
-                <Route path="/api-keys" element={<ApiKeysPage />} />
-                <Route path="/orders" element={<OrdersPage />} />
-                <Route path="/usage" element={<UsagePage />} />
-                <Route path="/data" element={<DataPage />} />
-                <Route path="/webhooks" element={<WebhooksPage />} />
+                <Route path="/tenants" element={<RoleRoute navKey="tenants"><TenantsPage /></RoleRoute>} />
+                <Route path="/users" element={<RoleRoute navKey="users"><UsersPage /></RoleRoute>} />
+                <Route path="/api-keys" element={<RoleRoute navKey="api-keys"><ApiKeysPage /></RoleRoute>} />
+                <Route path="/orders" element={<RoleRoute navKey="orders"><OrdersPage /></RoleRoute>} />
+                <Route path="/usage" element={<RoleRoute navKey="usage"><UsagePage /></RoleRoute>} />
+                <Route path="/data" element={<RoleRoute navKey="data"><DataPage /></RoleRoute>} />
+                <Route path="/webhooks" element={<RoleRoute navKey="webhooks"><WebhooksPage /></RoleRoute>} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>
