@@ -14,12 +14,29 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./database/schema_matching.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./database/migration_multitenant.sql:/docker-entrypoint-initdb.d/02-multitenant.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U medical_ocr -d medical_ocr"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+    networks:
+      - medical-ocr-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: medical-ocr-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     networks:
       - medical-ocr-network
 
@@ -40,6 +57,8 @@ services:
       - POSTGRES_DB=medical_ocr
       - POSTGRES_USER=medical_ocr
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-medical_ocr_dev}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
       - DEFAULT_PRESTADOR_ID=${DEFAULT_PRESTADOR_ID:-0}
       - TEMP_DIR=/app/temp
       - LOG_DIR=/app/logs
@@ -52,6 +71,8 @@ services:
       - temp-data:/app/temp
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
@@ -69,6 +90,8 @@ services:
 
 volumes:
   postgres-data:
+    driver: local
+  redis-data:
     driver: local
   temp-data:
     driver: local
