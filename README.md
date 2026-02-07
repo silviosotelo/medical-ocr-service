@@ -1,6 +1,18 @@
-# 🏥 Medical OCR Microservice
+# 🏥 Medical OCR SaaS Platform
 
-Microservicio de **visación automática de órdenes médicas** utilizando **GPT-4o Vision** para extracción de información estructurada de documentos médicos impresos y manuscritos.
+Plataforma **multi-tenant** de **visación automática de órdenes médicas** utilizando **GPT-4o Vision** para extracción de información estructurada de documentos médicos impresos y manuscritos.
+
+## 📚 Documentación Completa
+
+| Guía | Descripción |
+|------|-------------|
+| **[🚀 Quick Start](./QUICK_START.md)** | Inicio rápido en 5 minutos |
+| **[📦 Installation Guide](./INSTALLATION.md)** | Instalación paso a paso detallada |
+| **[⚙️ Service Setup](./SERVICE_SETUP.md)** | Configurar como servicio (Linux/Windows) |
+| **[🔄 PM2 Guide](./PM2_GUIDE.md)** | Gestión de procesos con PM2 |
+| **[🚀 Deployment Guide](./DEPLOYMENT.md)** | Deployment en producción |
+| **[📮 Postman Collection](./postman_collection.json)** | Colección completa de API |
+| **[💡 Examples](./EXAMPLES.md)** | Ejemplos de uso |
 
 ## 🎯 Características
 
@@ -432,6 +444,138 @@ curl -X POST http://localhost:3000/health/cleanup
 
 ### Alto consumo de memoria
 **Solución:** Reducir `MAX_FILE_SIZE_MB` o aumentar límites del sistema
+
+## 🔐 Sistema de Roles y Permisos (RBAC)
+
+La plataforma incluye un sistema completo de control de acceso basado en roles (RBAC) con 4 niveles:
+
+### Roles Disponibles
+
+| Rol | Nivel | Dashboard | Permisos Principales |
+|-----|-------|-----------|---------------------|
+| **super_admin** | 100 | Panel Global (todos los tenants) | Gestión completa de la plataforma, crear tenants, ver métricas globales |
+| **admin** | 80 | Dashboard de Organización | Gestionar usuarios, API keys, datos, webhooks, órdenes de su tenant |
+| **operator** | 50 | Centro de Operaciones | Procesar y validar órdenes, ver datos y estadísticas de uso |
+| **viewer** | 10 | Resumen de Solo Lectura | Ver órdenes procesadas (sin modificar) |
+
+### Dashboards por Rol
+
+#### Super Admin Dashboard
+- Vista de todos los tenants de la plataforma
+- Métricas globales (requests, tokens, errores)
+- Gráfico de actividad global
+- Lista de tenants con estado
+- Performance y almacenamiento general
+
+#### Admin Dashboard
+- Estadísticas del tenant (órdenes, usuarios, API keys)
+- Datos cargados (prestadores, nomencladores, acuerdos)
+- Gráfico de actividad del tenant
+- Uso de requests y tokens
+- Órdenes recientes
+
+#### Operator Dashboard
+- Métricas de operación (órdenes totales, validadas, con correcciones)
+- Confianza promedio de procesamiento
+- Estadísticas de últimos 7 días y 24 horas
+- Lista de órdenes recientes para procesar
+- Tokens utilizados
+
+#### Viewer Dashboard
+- Resumen simple con contadores
+- Órdenes totales y validadas
+- Órdenes de últimas 24 horas
+- Lista de últimas 5 órdenes (solo lectura)
+
+### Permisos Detallados
+
+Cada rol tiene permisos específicos que se validan en backend:
+
+- **Tenants**: `tenants:read`, `tenants:write`, `tenants:delete`
+- **Usuarios**: `users:read`, `users:write`, `users:delete`
+- **API Keys**: `api_keys:read`, `api_keys:write`, `api_keys:delete`
+- **Órdenes**: `orders:read`, `orders:write`, `orders:validate`
+- **Datos**: `data:read`, `data:import`, `data:export`, `data:embeddings`
+- **Uso**: `usage:read`
+- **Webhooks**: `webhooks:read`, `webhooks:write`, `webhooks:delete`
+- **Training**: `training:read`, `training:write`
+- **Settings**: `settings:read`, `settings:write`
+- **Dashboard**: `dashboard:global`, `dashboard:tenant`
+
+## 🏢 Multi-Tenancy
+
+La plataforma está diseñada como sistema multi-tenant con aislamiento completo de datos:
+
+### Características Multi-Tenant
+
+- ✅ **Aislamiento de Datos**: Cada tenant tiene sus propios usuarios, órdenes, configuraciones
+- ✅ **Subdominios**: Detección automática de tenant por subdomain
+- ✅ **Planes Flexibles**: starter, professional, enterprise con límites configurables
+- ✅ **Métricas Aisladas**: Cada tenant solo ve sus propias estadísticas
+- ✅ **API Keys por Tenant**: Las API keys solo acceden a datos de su tenant
+- ✅ **Configuración Individual**: Cada tenant puede tener sus propias configuraciones
+
+### Estructura de Base de Datos
+
+Todas las tablas principales incluyen `tenant_id` para aislamiento:
+- `users` (usuarios por tenant)
+- `api_keys` (llaves API por tenant)
+- `orders` (órdenes médicas por tenant)
+- `data_*` (prestadores, nomencladores, etc. por tenant)
+- `webhooks` (webhooks por tenant)
+- `usage_logs` (logs de uso por tenant)
+
+## 📮 Colección Postman
+
+La colección incluye:
+- ✅ **Variables automáticas**: Los tokens se guardan automáticamente al login
+- ✅ **Todos los endpoints organizados**: Por categorías (Auth, Tenants, Users, etc.)
+- ✅ **Ejemplos completos**: Request bodies prellenados
+- ✅ **Tests automatizados**: Scripts para extraer y guardar tokens
+
+### Importar en Postman
+1. Abrir Postman
+2. File → Import
+3. Seleccionar `postman_collection.json`
+4. Configurar variable `base_url` (default: http://localhost:3000)
+5. Hacer Login → Los tokens se guardan automáticamente
+
+## 🚀 Deployment en Producción
+
+### Opciones de Deployment
+
+1. **systemd (Linux)** - Servicio nativo del sistema
+   - Ver guía: [SERVICE_SETUP.md](./SERVICE_SETUP.md)
+   - Ideal para: Servidores Linux dedicados
+
+2. **PM2** - Process Manager multiplataforma
+   - Ver guía: [PM2_GUIDE.md](./PM2_GUIDE.md)
+   - Ideal para: Desarrollo, staging, producción simple
+   - Incluye: Clustering, zero-downtime reload, monitoreo
+
+3. **Docker Compose** - Containerización completa
+   - Ver archivo: [docker-compose.yml](./docker-compose.yml)
+   - Ideal para: Desarrollo y producción dockerizada
+
+4. **Windows Service** - Servicio de Windows
+   - Ver guía: [SERVICE_SETUP.md](./SERVICE_SETUP.md#windows-windows-service)
+   - Ideal para: Servidores Windows
+
+### Quick Commands
+
+```bash
+# systemd
+sudo systemctl start medical-ocr
+sudo journalctl -u medical-ocr -f
+
+# PM2
+pm2 start ecosystem.config.js
+pm2 monit
+
+# Docker
+docker-compose up -d
+docker-compose logs -f
+```
 
 ## 📝 Contribuir
 
