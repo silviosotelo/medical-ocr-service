@@ -1,0 +1,960 @@
+{
+  "info": {
+    "name": "Medical OCR SaaS Platform API",
+    "description": "Colección completa de endpoints para la plataforma Medical OCR con sistema multi-tenant y RBAC",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "5.0.0"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "api_v1",
+      "value": "{{base_url}}/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tenant_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health & Info",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Service Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": ["{{base_url}}"],
+              "path": [""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "API Version",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/version",
+              "host": ["{{api_v1}}"],
+              "path": ["version"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', res.data.accessToken);",
+                  "    pm.collectionVariables.set('refresh_token', res.data.refreshToken);",
+                  "    pm.collectionVariables.set('user_id', res.data.user.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"Admin123!@#\",\n  \"name\": \"Administrator\",\n  \"role\": \"admin\"\n}"
+            },
+            "url": {
+              "raw": "{{api_v1}}/auth/register",
+              "host": ["{{api_v1}}"],
+              "path": ["auth", "register"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', res.data.accessToken);",
+                  "    pm.collectionVariables.set('refresh_token', res.data.refreshToken);",
+                  "    pm.collectionVariables.set('user_id', res.data.user.id);",
+                  "    if (res.data.user.tenant_id) {",
+                  "        pm.collectionVariables.set('tenant_id', res.data.user.tenant_id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"Admin123!@#\"\n}"
+            },
+            "url": {
+              "raw": "{{api_v1}}/auth/login",
+              "host": ["{{api_v1}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', res.data.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{api_v1}}/auth/refresh",
+              "host": ["{{api_v1}}"],
+              "path": ["auth", "refresh"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/auth/me",
+              "host": ["{{api_v1}}"],
+              "path": ["auth", "me"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Permissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/auth/permissions",
+              "host": ["{{api_v1}}"],
+              "path": ["auth", "permissions"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Admin123!@#\",\n  \"newPassword\": \"NewPassword123!@#\"\n}"
+            },
+            "url": {
+              "raw": "{{api_v1}}/auth/password",
+              "host": ["{{api_v1}}"],
+              "path": ["auth", "password"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Tenants (Super Admin)",
+      "item": [
+        {
+          "name": "List Tenants",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/tenants?page=1&limit=20",
+              "host": ["{{api_v1}}"],
+              "path": ["tenants"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Tenant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    pm.collectionVariables.set('tenant_id', res.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Hospital Central\",\n  \"slug\": \"hospital-central\",\n  \"plan\": \"professional\",\n  \"status\": \"active\",\n  \"settings\": {\n    \"max_users\": 50,\n    \"max_requests_per_month\": 100000,\n    \"features\": [\"ocr\", \"validation\", \"api_access\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{api_v1}}/tenants",
+              "host": ["{{api_v1}}"],
+              "path": ["tenants"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Tenant by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/tenants/{{tenant_id}}",
+              "host": ["{{api_v1}}"],
+              "path": ["tenants", "{{tenant_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Tenant",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Hospital Central - Updated\",\n  \"plan\": \"enterprise\",\n  \"status\": \"active\",\n  \"settings\": {\n    \"max_users\": 100,\n    \"max_requests_per_month\": 500000\n  }\n}"
+            },
+            "url": {
+              "raw": "{{api_v1}}/tenants/{{tenant_id}}",
+              "host": ["{{api_v1}}"],
+              "path": ["tenants", "{{tenant_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Tenant Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/tenants/stats",
+              "host": ["{{api_v1}}"],
+              "path": ["tenants", "stats"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Tenant Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/tenants/dashboard",
+              "host": ["{{api_v1}}"],
+              "path": ["tenants", "dashboard"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/users?page=1&limit=20",
+              "host": ["{{api_v1}}"],
+              "path": ["users"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "role",
+                  "value": "admin",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"operator@hospital.com\",\n  \"password\": \"Operator123!@#\",\n  \"name\": \"Juan Perez\",\n  \"role\": \"operator\"\n}"
+            },
+            "url": {
+              "raw": "{{api_v1}}/users",
+              "host": ["{{api_v1}}"],
+              "path": ["users"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/users/{{user_id}}",
+              "host": ["{{api_v1}}"],
+              "path": ["users", "{{user_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Juan Perez Updated\",\n  \"role\": \"admin\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{api_v1}}/users/{{user_id}}",
+              "host": ["{{api_v1}}"],
+              "path": ["users", "{{user_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/users/{{user_id}}",
+              "host": ["{{api_v1}}"],
+              "path": ["users", "{{user_id}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "API Keys",
+      "item": [
+        {
+          "name": "List API Keys",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/api-keys",
+              "host": ["{{api_v1}}"],
+              "path": ["api-keys"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Production API Key\",\n  \"scopes\": [\"read\", \"write\", \"validate\"],\n  \"expiresInDays\": 365\n}"
+            },
+            "url": {
+              "raw": "{{api_v1}}/api-keys",
+              "host": ["{{api_v1}}"],
+              "path": ["api-keys"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke API Key",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/api-keys/:keyId",
+              "host": ["{{api_v1}}"],
+              "path": ["api-keys", ":keyId"],
+              "variable": [
+                {
+                  "key": "keyId",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "List Orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/orders?page=1&limit=20",
+              "host": ["{{api_v1}}"],
+              "path": ["orders"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "validado",
+                  "value": "true",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Order by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/orders/:orderId",
+              "host": ["{{api_v1}}"],
+              "path": ["orders", ":orderId"],
+              "variable": [
+                {
+                  "key": "orderId",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Order Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/orders/stats",
+              "host": ["{{api_v1}}"],
+              "path": ["orders", "stats"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Data Management",
+      "item": [
+        {
+          "name": "Import Excel File",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "type",
+                  "value": "prestadores",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{api_v1}}/data/import",
+              "host": ["{{api_v1}}"],
+              "path": ["data", "import"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Embeddings",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"force\": false\n}"
+            },
+            "url": {
+              "raw": "{{api_v1}}/data/embeddings",
+              "host": ["{{api_v1}}"],
+              "path": ["data", "embeddings"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Export Data",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/data/export/:type",
+              "host": ["{{api_v1}}"],
+              "path": ["data", "export", ":type"],
+              "variable": [
+                {
+                  "key": "type",
+                  "value": "prestadores",
+                  "description": "prestadores, nomencladores, or acuerdos"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Data Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/data/stats",
+              "host": ["{{api_v1}}"],
+              "path": ["data", "stats"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Usage & Metrics",
+      "item": [
+        {
+          "name": "Get Usage Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/usage?page=1&limit=50",
+              "host": ["{{api_v1}}"],
+              "path": ["usage"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "endpoint",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Usage Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/usage/summary",
+              "host": ["{{api_v1}}"],
+              "path": ["usage", "summary"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Daily Usage",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/usage/daily?days=30",
+              "host": ["{{api_v1}}"],
+              "path": ["usage", "daily"],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Quota Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/usage/quota",
+              "host": ["{{api_v1}}"],
+              "path": ["usage", "quota"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "List Webhooks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/webhooks",
+              "host": ["{{api_v1}}"],
+              "path": ["webhooks"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://your-domain.com/webhook\",\n  \"events\": [\"order.created\", \"order.validated\"],\n  \"secret\": \"your_webhook_secret_here\",\n  \"active\": true\n}"
+            },
+            "url": {
+              "raw": "{{api_v1}}/webhooks",
+              "host": ["{{api_v1}}"],
+              "path": ["webhooks"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Webhook",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://your-domain.com/webhook-updated\",\n  \"events\": [\"order.created\"],\n  \"active\": false\n}"
+            },
+            "url": {
+              "raw": "{{api_v1}}/webhooks/:webhookId",
+              "host": ["{{api_v1}}"],
+              "path": ["webhooks", ":webhookId"],
+              "variable": [
+                {
+                  "key": "webhookId",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Webhook",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{api_v1}}/webhooks/:webhookId",
+              "host": ["{{api_v1}}"],
+              "path": ["webhooks", ":webhookId"],
+              "variable": [
+                {
+                  "key": "webhookId",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Legacy API (v0)",
+      "item": [
+        {
+          "name": "Process Medical Order (OCR)",
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "your-api-key-here",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "x-api-key",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/visacion",
+              "host": ["{{base_url}}"],
+              "path": ["api", "visacion"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Pre-Validation",
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "your-api-key-here",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "x-api-key",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/pre-visacion",
+              "host": ["{{base_url}}"],
+              "path": ["api", "pre-visacion"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
