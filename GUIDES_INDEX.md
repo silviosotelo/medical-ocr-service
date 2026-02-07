@@ -34,10 +34,15 @@
 |---------|-------------|
 | **[schema_matching.sql](./database/schema_matching.sql)** | Schema de datos de matching |
 | **[migration_multitenant.sql](./database/migration_multitenant.sql)** | Migración multi-tenant |
+| **[seed_data.sql](./database/seed_data.sql)** | Datos iniciales (SQL) |
+| **[seed-database.js](./scripts/seed-database.js)** | Datos iniciales (Node.js) |
+| **[seed.sh](./scripts/seed.sh)** | Script interactivo de seeding |
+| **[Database Seed Guide](./DATABASE_SEED_GUIDE.md)** | Guía completa de seeding |
 
 ## 📚 Documentación de Referencia
 
 - **[README.md](./README.md)** - Documentación principal
+- **[COMMANDS_REFERENCE.md](./COMMANDS_REFERENCE.md)** - Referencia rápida de comandos
 - **[package.json](./package.json)** - Dependencias y scripts
 
 ---
@@ -53,7 +58,8 @@
 4. Configure .env
 5. Create database
 6. Apply migrations
-7. Start server: npm start
+7. Seed database: npm run db:seed
+8. Start server: npm start
 ```
 
 ### 🐧 Setup en Linux Producción

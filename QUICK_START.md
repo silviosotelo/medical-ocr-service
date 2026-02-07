@@ -33,7 +33,16 @@ sudo -u postgres psql -c "GRANT ALL ON DATABASE medical_ocr TO medical_ocr_user;
 # Aplicar migraciones
 psql -U medical_ocr_user -d medical_ocr -f database/schema_matching.sql
 psql -U medical_ocr_user -d medical_ocr -f database/migration_multitenant.sql
+
+# Insertar datos iniciales (usuarios de prueba)
+npm run db:seed
 ```
+
+**Credenciales creadas:**
+- Super Admin: `superadmin@platform.com` / `SuperAdmin123!`
+- Admin: `admin@demo.com` / `Admin123!`
+- Operator: `operator@demo.com` / `Operator123!`
+- Viewer: `viewer@demo.com` / `Viewer123!`
 
 ### 5. Iniciar
 ```bash
