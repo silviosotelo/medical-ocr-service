@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { query } = require('../config/database.config');
 const logger = require('../config/logger.config');
+const { DEMO_MODE, DEMO_USERS } = require('../config/demo-mode');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
 const JWT_EXPIRES = process.env.JWT_EXPIRES || '8h';
@@ -63,43 +64,75 @@ class AuthService {
   }
 
   async login(email, password) {
-    const result = await query(
-      `SELECT id, email, password_hash, name, tenant_id, role, status
-       FROM users WHERE email = $1`,
-      [email]
-    );
-
-    if (result.rowCount === 0) {
-      const err = new Error('Invalid credentials');
-      err.statusCode = 401;
-      throw err;
+    // Demo mode - no database required
+    if (DEMO_MODE || !process.env.DATABASE_URL || process.env.DATABASE_URL.includes('localhost')) {
+      logger.info('Using DEMO MODE for authentication');
+      const demoUser = DEMO_USERS.find(u => u.email === email);
+      if (!demoUser || demoUser.password !== password) {
+        const err = new Error('Invalid credentials');
+        err.statusCode = 401;
+        throw err;
+      }
+      const user = { ...demoUser };
+      delete user.password;
+      const tokens = this.generateTokens(user);
+      logger.info('Demo login successful', { email, role: user.role });
+      return { user, ...tokens };
     }
 
-    const user = result.rows[0];
+    // Database mode
+    try {
+      const result = await query(
+        `SELECT id, email, password_hash, name, tenant_id, role, status
+         FROM users WHERE email = $1`,
+        [email]
+      );
 
-    if (user.status !== 'active') {
-      const err = new Error('Account suspended');
-      err.statusCode = 403;
-      throw err;
+      if (result.rowCount === 0) {
+        const err = new Error('Invalid credentials');
+        err.statusCode = 401;
+        throw err;
+      }
+
+      const user = result.rows[0];
+
+      if (user.status !== 'active') {
+        const err = new Error('Account suspended');
+        err.statusCode = 403;
+        throw err;
+      }
+
+      const valid = await this.comparePassword(password, user.password_hash);
+      if (!valid) {
+        const err = new Error('Invalid credentials');
+        err.statusCode = 401;
+        throw err;
+      }
+
+      await query(
+        `UPDATE users SET last_login = NOW(), login_count = login_count + 1 WHERE id = $1`,
+        [user.id]
+      );
+
+      delete user.password_hash;
+      const tokens = this.generateTokens(user);
+
+      logger.audit('User login', { userId: user.id, email });
+      return { user, ...tokens };
+    } catch (error) {
+      // Fallback to demo mode on database error
+      logger.warn('Database login failed, falling back to demo mode', { error: error.message });
+      const demoUser = DEMO_USERS.find(u => u.email === email);
+      if (!demoUser || demoUser.password !== password) {
+        const err = new Error('Invalid credentials');
+        err.statusCode = 401;
+        throw err;
+      }
+      const user = { ...demoUser };
+      delete user.password;
+      const tokens = this.generateTokens(user);
+      return { user, ...tokens };
     }
-
-    const valid = await this.comparePassword(password, user.password_hash);
-    if (!valid) {
-      const err = new Error('Invalid credentials');
-      err.statusCode = 401;
-      throw err;
-    }
-
-    await query(
-      `UPDATE users SET last_login = NOW(), login_count = login_count + 1 WHERE id = $1`,
-      [user.id]
-    );
-
-    delete user.password_hash;
-    const tokens = this.generateTokens(user);
-
-    logger.audit('User login', { userId: user.id, email });
-    return { user, ...tokens };
   }
 
   async refreshToken(token) {

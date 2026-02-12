@@ -18,10 +18,22 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
+const allowedOrigins = process.env.ALLOWED_ORIGINS || '*';
 const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  origin: (origin, callback) => {
+    if (allowedOrigins === '*') {
+      callback(null, true);
+    } else {
+      const origins = allowedOrigins.split(',').map(o => o.trim());
+      if (!origin || origins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true,
   maxAge: 86400,
 };

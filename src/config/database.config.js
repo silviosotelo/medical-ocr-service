@@ -3,14 +3,11 @@ const { Pool } = require('pg');
 const logger = require('./logger.config');
 
 const pool = new Pool({
-  host: process.env.POSTGRES_HOST || 'localhost',
-  port: parseInt(process.env.POSTGRES_PORT || '5432'),
-  database: process.env.POSTGRES_DB || 'medical_ocr',
-  user: process.env.POSTGRES_USER || 'medical_ocr',
-  password: process.env.POSTGRES_PASSWORD || 'medical_ocr',
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('supabase') ? { rejectUnauthorized: false } : false,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000
+  connectionTimeoutMillis: 5000
 });
 
 // Test de conexión
