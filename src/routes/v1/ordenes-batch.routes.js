@@ -36,7 +36,7 @@ router.use(apiKeyOrBearerAuth);
 
 const ordenSchema = Joi.object({
   id_externo: Joi.string().required(),
-  archivo_base64: Joi.string().max(10 * 1024 * 1024 * 1.37).required(), // ~10MB in base64
+  archivo_base64: Joi.string().max(Math.ceil(10 * 1024 * 1024 * 1.37)).required(), // ~10MB in base64
   archivo_nombre: Joi.string().required(),
   archivo_tipo: Joi.string().allow(null, ''),
   metadata: Joi.object({
