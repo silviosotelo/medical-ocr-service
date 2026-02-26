@@ -1,610 +1,335 @@
-# 🏥 Medical OCR SaaS Platform
+# Medical OCR Service
 
-Plataforma **multi-tenant** de **visación automática de órdenes médicas** utilizando **GPT-4o Vision** para extracción de información estructurada de documentos médicos impresos y manuscritos.
+Plataforma de **visacion automatica de ordenes medicas** con arquitectura **API-First**. Utiliza **GPT-4o Vision** para extraccion OCR, **pgvector** para matching semantico de nomencladores/prestadores, y **webhooks** para comunicacion asincrona con sistemas externos.
 
-## 📚 Documentación Completa
+## Arquitectura
 
-| Guía | Descripción |
-|------|-------------|
-| **[🚀 Quick Start](./QUICK_START.md)** | Inicio rápido en 5 minutos |
-| **[📦 Installation Guide](./INSTALLATION.md)** | Instalación paso a paso detallada |
-| **[⚙️ Service Setup](./SERVICE_SETUP.md)** | Configurar como servicio (Linux/Windows) |
-| **[🔄 PM2 Guide](./PM2_GUIDE.md)** | Gestión de procesos con PM2 |
-| **[🚀 Deployment Guide](./DEPLOYMENT.md)** | Deployment en producción |
-| **[📮 Postman Collection](./postman_collection.json)** | Colección completa de API |
-| **[💡 Examples](./EXAMPLES.md)** | Ejemplos de uso |
-
-## 🎯 Características
-
-- ✅ Procesamiento de órdenes médicas impresas, manuscritas y mixtas
-- ✅ Extracción inteligente de información estructurada
-- ✅ Soporte para PDFs (conversión automática a imagen)
-- ✅ Detección de letra manuscrita médica
-- ✅ Identificación de prácticas con códigos de nomenclador
-- ✅ Detección automática de urgencias
-- ✅ Validación robusta de archivos (magic numbers)
-- ✅ Rate limiting y seguridad
-- ✅ Logging estructurado y métricas
-- ✅ Limpieza automática de archivos temporales
-- ✅ Dockerizado y listo para producción
-
-## 🛠️ Stack Tecnológico
-
-- **Runtime:** Node.js 20 LTS
-- **Framework:** Express.js 4.19+
-- **IA/Vision:** OpenAI GPT-4o
-- **Procesamiento de Imágenes:** Sharp
-- **Conversión PDF:** poppler-utils (pdftoppm)
-- **Validación:** Joi
-- **Logging:** Winston
-- **Seguridad:** Helmet, CORS, Rate Limiting
-
-## 📋 Requisitos Previos
-
-### Sistema
-- Node.js >= 20.0.0
-- npm >= 10.0.0
-- poppler-utils (para conversión de PDFs)
-
-### Instalación de poppler-utils
-
-**Ubuntu/Debian:**
-```bash
-sudo apt-get update
-sudo apt-get install poppler-utils
+```
+Sistema Externo (APEX, Oracle ORDS, cualquier cliente HTTP)
+    |
+    |-- POST /api/v1/data/prestadores/batch    --> Sync datos maestros
+    |-- POST /api/v1/data/nomencladores/batch  --> Sync nomencladores
+    |-- POST /api/v1/data/acuerdos/batch       --> Sync acuerdos de precios
+    |
+    |-- POST /api/v1/ordenes/batch             --> Enviar ordenes medicas
+    |       (procesamiento asincrono)
+    |
+    |-- <-- WEBHOOK: previsacion.generada      --> Recibir resultado
+    |-- <-- WEBHOOK: previsacion.fallida       --> Recibir error
+    |
+    |-- POST /api/v1/ordenes/:id/feedback      --> Aprobar/Rechazar/Corregir
+    |-- <-- WEBHOOK: previsacion.feedback_recibido
 ```
 
-**macOS:**
+El microservicio **no tiene conexion directa a Oracle**. Toda la comunicacion es via HTTP REST + Webhooks.
+
+## Stack Tecnologico
+
+| Componente | Tecnologia |
+|------------|-----------|
+| Runtime | Node.js 20 LTS |
+| Framework | Express.js 4.19 |
+| Base de datos | PostgreSQL 15 + pgvector |
+| IA/Vision | OpenAI GPT-4o |
+| Embeddings | OpenAI text-embedding-3-small (1536 dims) |
+| Procesamiento de imagenes | Sharp |
+| Conversion PDF | poppler-utils (pdftoppm) |
+| Validacion | Joi |
+| Autenticacion | JWT + API Keys (HMAC-SHA256) |
+| Logging | Winston (rotacion diaria) |
+| Cola de trabajos | In-memory (sin Redis requerido) |
+| Contenedores | Docker + Docker Compose |
+
+## Inicio Rapido con Docker
+
 ```bash
-brew install poppler
-```
-
-**Verificar instalación:**
-```bash
-pdftoppm -v
-```
-
-### API Key de OpenAI
-- Registrarse en [OpenAI Platform](https://platform.openai.com/)
-- Crear una API Key
-- Asegurarse de tener acceso al modelo `gpt-4o`
-
-## 🚀 Instalación y Configuración
-
-### 1. Clonar el repositorio
-```bash
-git clone <repository-url>
+# 1. Clonar repositorio
+git clone https://github.com/silviosotelo/medical-ocr-service.git
 cd medical-ocr-service
-```
 
-### 2. Instalar dependencias
-```bash
-npm install
-```
-
-### 3. Configurar variables de entorno
-```bash
+# 2. Configurar variables de entorno
 cp .env.example .env
+# Editar .env: configurar OPENAI_API_KEY (obligatorio)
+
+# 3. Levantar todo
+docker compose up -d
+
+# 4. Verificar que esta corriendo
+curl http://localhost:3000/health
 ```
 
-Editar `.env` y configurar:
-```env
-OPENAI_API_KEY=sk-your-actual-api-key-here
-NODE_ENV=development
-PORT=3000
-```
-
-### 4. Iniciar el servidor
-
-**Modo desarrollo (con auto-reload):**
-```bash
-npm run dev
-```
-
-**Modo producción:**
-```bash
-npm start
-```
-
-El servidor estará disponible en `http://localhost:3000`
-
-## 🐳 Despliegue con Docker
-
-### Build de la imagen
-```bash
-docker build -t medical-ocr-service .
-```
-
-### Ejecutar con Docker Compose
-```bash
-# Configurar OPENAI_API_KEY en .env primero
-docker-compose up -d
-```
+Esto levanta:
+- **PostgreSQL 16** con pgvector (puerto 5432)
+- **Medical OCR Service** (puerto 3000)
 
 ### Ver logs
 ```bash
-docker-compose logs -f
+docker compose logs -f medical-ocr-service
 ```
 
-### Detener el servicio
+### Detener
 ```bash
-docker-compose down
+docker compose down
 ```
 
-## 📡 API Endpoints
-
-### 1. Procesar Orden Médica
-
-**Endpoint:** `POST /api/visar`
-
-**Content-Type:** `multipart/form-data`
-
-**Parámetros:**
-- `archivo` (required): Archivo JPG, PNG o PDF (máx. 10MB)
-- `opciones` (optional): JSON string con opciones de procesamiento
-
-**Ejemplo con cURL:**
+### Detener y borrar datos
 ```bash
-curl -X POST http://localhost:3000/api/visar \
-  -F "archivo=@orden_medica.pdf" \
-  -F 'opciones={"extraer_diagnostico":true,"detectar_urgencias":true,"validar_matricula":false}'
+docker compose down -v
 ```
 
-**Ejemplo con JavaScript/Fetch:**
-```javascript
-const formData = new FormData();
-formData.append('archivo', fileInput.files[0]);
-formData.append('opciones', JSON.stringify({
-  extraer_diagnostico: true,
-  detectar_urgencias: true,
-  validar_matricula: false
-}));
+## Inicio sin Docker
 
-const response = await fetch('http://localhost:3000/api/visar', {
-  method: 'POST',
-  body: formData
-});
+### Requisitos
+- Node.js >= 20.0.0
+- PostgreSQL 15+ con extensiones `vector` y `pg_trgm`
+- poppler-utils (para PDFs)
 
-const result = await response.json();
-console.log(result);
-```
+### Instalacion
 
-**Respuesta exitosa (200 OK):**
-```json
-{
-  "status": "success",
-  "timestamp": "2026-01-28T08:20:00Z",
-  "processingTime": "8.50",
-  "data": {
-    "metadatos": {
-      "tipo_escritura": "MANUSCRITA",
-      "legibilidad": "ALTA",
-      "confianza_ia": 0.95,
-      "advertencias": [],
-      "requiere_revision_humana": false,
-      "es_urgente": false
-    },
-    "cabecera": {
-      "medico": {
-        "nombre": "Dr. Juan Carlos Pérez",
-        "matricula": "12345",
-        "especialidad_inferida": "Cardiólogo"
-      },
-      "paciente": {
-        "nombre": "María González",
-        "identificacion": "12345678",
-        "tipo_identificacion": "DNI"
-      },
-      "fecha_emision": "2026-01-15",
-      "diagnostico_presuntivo": "Dolor torácico atípico",
-      "institucion_solicitante": "Sanatorio ABC"
-    },
-    "detalle_practicas": [
-      {
-        "orden": 1,
-        "descripcion": "Radiografía de Tórax Frente y Perfil",
-        "cantidad": 1,
-        "codigo_sugerido": "420101",
-        "nomenclador": "EMER",
-        "confianza": 0.98
-      }
-    ],
-    "observaciones": {
-      "texto_completo": "Paciente con antecedentes de HTA",
-      "flags_detectados": ["HTA"]
-    }
-  },
-  "archivo_procesado": {
-    "nombre_original": "orden_medica.pdf",
-    "tipo": "application/pdf",
-    "tamaño_kb": 245,
-    "dimensiones": { "width": 1700, "height": 2200 },
-    "formato": "jpeg",
-    "comprimido": false,
-    "paginas_procesadas": 1
-  },
-  "ia_metadata": {
-    "modelo": "gpt-4o",
-    "tokens_usados": 1523,
-    "tokens_prompt": 1200,
-    "tokens_completion": 323,
-    "tiempo_ia_ms": 6200,
-    "finish_reason": "stop"
-  }
-}
-```
-
-### 2. Health Check
-
-**Endpoint:** `GET /health`
-
-**Respuesta:**
-```json
-{
-  "status": "healthy",
-  "timestamp": "2026-01-28T08:20:00Z",
-  "dependencies": {
-    "poppler": true,
-    "openai": true,
-    "apiKeyConfigured": true
-  },
-  "uptime": 3600.5,
-  "environment": "production"
-}
-```
-
-### 3. Métricas del Servicio
-
-**Endpoint:** `GET /health/metrics`
-
-**Respuesta:**
-```json
-{
-  "status": "ok",
-  "timestamp": "2026-01-28T08:20:00Z",
-  "metrics": {
-    "uptime": {
-      "hours": 2,
-      "minutes": 120,
-      "formatted": "2h 0m"
-    },
-    "requests": {
-      "total": 150,
-      "successful": 145,
-      "failed": 5,
-      "successRate": "96.67%"
-    },
-    "tokens": {
-      "total": 225000,
-      "prompt": 180000,
-      "completion": 45000,
-      "averagePerRequest": 1500
-    },
-    "performance": {
-      "averageProcessingTimeMs": 8500,
-      "averageProcessingTimeSec": "8.50"
-    },
-    "cost": {
-      "estimatedUSD": "1.2500",
-      "averagePerRequest": "0.008333"
-    }
-  }
-}
-```
-
-### 4. Información de Versión
-
-**Endpoint:** `GET /api/version`
-
-**Respuesta:**
-```json
-{
-  "service": "Medical OCR Microservice",
-  "version": "1.0.0",
-  "model": "gpt-4o",
-  "features": [
-    "PDF to Image conversion",
-    "Handwritten text recognition",
-    "Medical terminology extraction",
-    "Practice code suggestion",
-    "Urgency detection"
-  ]
-}
-```
-
-## 🔧 Opciones de Procesamiento
-
-El parámetro `opciones` acepta un objeto JSON con las siguientes propiedades:
-
-```typescript
-{
-  extraer_diagnostico?: boolean;   // default: true
-  detectar_urgencias?: boolean;    // default: true
-  validar_matricula?: boolean;     // default: false
-}
-```
-
-**Descripción:**
-- `extraer_diagnostico`: Extrae diagnóstico presuntivo y observaciones clínicas
-- `detectar_urgencias`: Detecta palabras clave de urgencia (URGENTE, STAT, etc.)
-- `validar_matricula`: Requiere validación estricta de matrícula del médico
-
-## 📊 Estructura de Datos Extraídos
-
-### Metadatos
-- `tipo_escritura`: IMPRESA | MANUSCRITA | MIXTA
-- `legibilidad`: ALTA | MEDIA | BAJA
-- `confianza_ia`: 0.0 - 1.0 (confianza del modelo)
-- `advertencias`: Array de strings con advertencias
-- `requiere_revision_humana`: boolean
-- `es_urgente`: boolean
-
-### Cabecera
-- **Médico**: nombre, matrícula, especialidad
-- **Paciente**: nombre, identificación, tipo_identificacion
-- **Fecha de emisión**: formato YYYY-MM-DD
-- **Diagnóstico presuntivo**: string
-- **Institución**: nombre del centro médico
-
-### Detalle de Prácticas
-Array de prácticas solicitadas:
-- `orden`: número de secuencia
-- `descripcion`: nombre del estudio/práctica
-- `cantidad`: número de estudios
-- `codigo_sugerido`: código de nomenclador (si se detecta)
-- `nomenclador`: EMER | PMO | SWISS_MEDICAL | OSDE | PAMI | IOMA
-- `confianza`: 0.0 - 1.0
-
-### Observaciones
-- `texto_completo`: observaciones del médico
-- `flags_detectados`: keywords detectados (HTA, URGENTE, etc.)
-
-## 🔒 Seguridad
-
-### Validación de Archivos
-- ✅ Validación de MIME type
-- ✅ Verificación de magic numbers (previene spoofing)
-- ✅ Límite de tamaño de archivo (10MB configurable)
-- ✅ Sanitización de nombres de archivo
-
-### Rate Limiting
-- 30 requests por minuto por IP (configurable)
-- Headers de rate limit en las respuestas
-
-### Headers de Seguridad
-- Helmet.js configurado con CSP
-- CORS con origins permitidos
-- HSTS habilitado
-
-## 📈 Monitoreo y Logs
-
-### Logs Estructurados
-Los logs se escriben en `./logs/` con rotación diaria:
-- `combined-YYYY-MM-DD.log`: Todos los logs
-- `error-YYYY-MM-DD.log`: Solo errores
-- `audit-YYYY-MM-DD.log`: Auditoría de operaciones críticas
-
-### Formato de Logs
-```json
-{
-  "timestamp": "2026-01-28 08:20:00",
-  "level": "info",
-  "message": "Order processed successfully",
-  "filename": "orden_001.pdf",
-  "processingTimeMs": 8500,
-  "tokensUsed": 1523,
-  "service": "medical-ocr-service"
-}
-```
-
-### Métricas Disponibles
-- Total de requests (exitosos/fallidos)
-- Tokens consumidos (prompt/completion)
-- Tiempo de procesamiento promedio
-- Costos estimados en USD
-- Distribución de requests por hora
-- Errores por tipo
-
-## 🧪 Testing
-
-### Ejecutar tests
 ```bash
-npm test
-```
-
-### Tests de integración
-```bash
-npm run test:integration
-```
-
-### Coverage
-```bash
-npm test -- --coverage
-```
-
-## 🐛 Troubleshooting
-
-### Error: "pdftoppm not found"
-**Solución:** Instalar poppler-utils
-```bash
+# Instalar poppler-utils
+# Ubuntu/Debian:
 sudo apt-get install poppler-utils
+# macOS:
+brew install poppler
+
+# Instalar dependencias
+npm install
+
+# Configurar entorno
+cp .env.example .env
+# Editar .env con credenciales de DB y OPENAI_API_KEY
+
+# Ejecutar migraciones
+psql -U medical_ocr -d medical_ocr -f database/schema_matching.sql
+psql -U medical_ocr -d medical_ocr -f database/migration_multitenant.sql
+psql -U medical_ocr -d medical_ocr -f database/migration_ingestion_jobs.sql
+
+# Iniciar en desarrollo
+npm run dev
+
+# Iniciar en produccion
+npm start
 ```
 
-### Error: "OpenAI API Key invalid"
-**Solución:** Verificar que `OPENAI_API_KEY` en `.env` sea válida
+## Endpoints API
 
-### Error: "Rate limit exceeded"
-**Solución:** Esperar 60 segundos o ajustar `RATE_LIMIT_MAX_REQUESTS` en `.env`
+Documentacion completa de contratos: **[README_API_CONTRACT.md](./README_API_CONTRACT.md)**
 
-### Archivos temporales no se limpian
-**Solución:** Forzar limpieza manual
-```bash
-curl -X POST http://localhost:3000/health/cleanup
+### Autenticacion
+
+Todos los endpoints requieren una de estas formas de autenticacion:
+- Header `Authorization: Bearer <JWT_TOKEN>` (obtenido via `/api/v1/auth/login`)
+- Header `X-Api-Key: <API_KEY>` (creada via `/api/v1/api-keys`)
+
+### Ingesta de Datos Maestros
+
+| Metodo | Endpoint | Descripcion |
+|--------|----------|-------------|
+| POST | `/api/v1/data/prestadores/batch` | Upsert batch de prestadores (max 5000) |
+| POST | `/api/v1/data/nomencladores/batch` | Upsert batch de nomencladores (max 5000) |
+| POST | `/api/v1/data/acuerdos/batch` | Upsert batch de acuerdos de precios |
+| GET | `/api/v1/data/jobs/:job_id/status` | Estado de job asincrono |
+| GET | `/api/v1/data/stats` | Estadisticas de la BD |
+
+### Procesamiento de Ordenes
+
+| Metodo | Endpoint | Descripcion |
+|--------|----------|-------------|
+| POST | `/api/v1/ordenes/batch` | Enviar batch de ordenes (max 50, 10MB/archivo) |
+| GET | `/api/v1/ordenes/batch/:batch_id/status` | Estado del batch |
+| POST | `/api/v1/ordenes/:id_visacion/feedback` | Aprobar/Rechazar/Corregir |
+
+### Gestion de Plataforma
+
+| Metodo | Endpoint | Descripcion |
+|--------|----------|-------------|
+| POST | `/api/v1/auth/login` | Login (retorna JWT) |
+| POST | `/api/v1/auth/register` | Registro de usuario |
+| GET | `/api/v1/auth/me` | Perfil del usuario |
+| CRUD | `/api/v1/tenants` | Gestion de tenants |
+| CRUD | `/api/v1/users` | Gestion de usuarios |
+| CRUD | `/api/v1/api-keys` | Gestion de API keys |
+| CRUD | `/api/v1/webhooks` | Gestion de webhooks |
+| GET | `/api/v1/usage/*` | Metricas de uso |
+| GET | `/api/v1/orders` | Listar ordenes procesadas |
+
+### Health & Info
+
+| Metodo | Endpoint | Descripcion |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| GET | `/health/metrics` | Metricas del servicio |
+| GET | `/api/v1/version` | Version e info de la API |
+
+## Webhooks
+
+El servicio envia webhooks a URLs configuradas por tenant. Headers incluidos:
+
+| Header | Descripcion |
+|--------|-------------|
+| `X-Webhook-Event` | Nombre del evento |
+| `X-Webhook-Timestamp` | Unix timestamp |
+| `X-Webhook-Signature` | `sha256={HMAC-SHA256 del body}` |
+| `X-Webhook-Retry` | Numero de intento (0-based) |
+
+### Eventos
+
+| Evento | Cuando |
+|--------|--------|
+| `previsacion.generada` | Orden procesada exitosamente |
+| `previsacion.fallida` | Orden fallo tras todos los reintentos |
+| `previsacion.feedback_recibido` | Feedback recibido sobre una pre-visacion |
+
+Politica de reintentos: hasta 5 intentos con backoff exponencial (5s, 15s, 30s, 60s, 120s).
+
+## Estructura del Proyecto
+
+```
+medical-ocr-service/
+├── database/
+│   ├── schema_matching.sql              # Schema principal (pgvector)
+│   ├── migration_multitenant.sql        # Multi-tenancy
+│   └── migration_ingestion_jobs.sql     # Cola de trabajos
+├── src/
+│   ├── app.js                           # Express app
+│   ├── config/
+│   │   ├── database.config.js           # Pool PostgreSQL
+│   │   ├── openai.config.js             # Cliente OpenAI
+│   │   ├── logger.config.js             # Winston logger
+│   │   ├── redis.config.js              # Redis (opcional)
+│   │   ├── multer.config.js             # Upload de archivos
+│   │   └── demo-mode.js                 # Modo demo
+│   ├── routes/
+│   │   ├── v1/
+│   │   │   ├── index.js                 # Agregador de rutas v1
+│   │   │   ├── data-ingest.routes.js    # Ingesta batch de datos
+│   │   │   ├── ordenes-batch.routes.js  # Procesamiento de ordenes
+│   │   │   ├── feedback.routes.js       # Feedback de pre-visaciones
+│   │   │   ├── auth.routes.js           # Autenticacion
+│   │   │   ├── tenant.routes.js         # Multi-tenancy
+│   │   │   ├── user.routes.js           # Usuarios
+│   │   │   ├── apikey.routes.js         # API keys
+│   │   │   ├── webhook.routes.js        # Gestion de webhooks
+│   │   │   ├── usage.routes.js          # Metricas de uso
+│   │   │   └── orders.routes.js         # Consulta de ordenes
+│   │   ├── api.routes.js               # API legacy
+│   │   ├── health.routes.js            # Health checks
+│   │   ├── pre-visacion.routes.js      # Pre-visacion legacy
+│   │   └── training.routes.js          # Fine-tuning
+│   ├── services/
+│   │   ├── job-queue.service.js         # Cola de trabajos in-memory
+│   │   ├── embedding.service.js         # Generacion de embeddings
+│   │   ├── webhook.service.js           # Dispatch con retry
+│   │   ├── pre-visacion.service.js      # Generacion de pre-visaciones
+│   │   ├── matching.service.js          # Matching de nomencladores
+│   │   ├── gpt-vision.service.js        # OCR con GPT-4o Vision
+│   │   ├── pdf.service.js              # Conversion PDF a imagen
+│   │   ├── auto-training.service.js     # Fine-tuning automatico
+│   │   ├── rag.service.js              # RAG con pgvector
+│   │   └── ...                          # Auth, tenant, cache, etc.
+│   ├── workers/
+│   │   ├── embedding.worker.js          # Worker de embeddings
+│   │   └── previsacion.worker.js        # Worker de pre-visacion
+│   ├── middlewares/
+│   │   ├── auth.middleware.js           # JWT + API Key
+│   │   ├── rate-limiter.middleware.js   # Rate limiting
+│   │   ├── tenant.middleware.js         # Aislamiento multi-tenant
+│   │   ├── rbac.middleware.js           # Control de acceso por rol
+│   │   └── ...
+│   ├── schemas/
+│   │   └── contracts/                   # JSON Schema de contratos
+│   └── prompts/                         # Prompts para GPT-4o
+├── server.js                            # Entry point
+├── docker-compose.yml                   # Docker Compose
+├── Dockerfile                           # Imagen Docker
+├── ecosystem.config.js                  # Configuracion PM2
+├── postman_collection.json              # Coleccion Postman
+├── README_API_CONTRACT.md               # Documentacion de contratos
+└── package.json
 ```
 
-### Alto consumo de memoria
-**Solución:** Reducir `MAX_FILE_SIZE_MB` o aumentar límites del sistema
+## Base de Datos
 
-## 🔐 Sistema de Roles y Permisos (RBAC)
+### Tablas Principales
 
-La plataforma incluye un sistema completo de control de acceso basado en roles (RBAC) con 4 niveles:
+| Tabla | Descripcion |
+|-------|-------------|
+| `prestadores` | Proveedores medicos con embeddings vectoriales |
+| `nomencladores` | Codigos de procedimientos con embeddings |
+| `acuerdos_prestador` | Acuerdos de precios prestador-nomenclador |
+| `ordenes_procesadas` | Ordenes procesadas con resultado de IA |
+| `visacion_previa` | Pre-visaciones generadas (cabecera) |
+| `det_visacion_previa` | Detalle de practicas en pre-visaciones |
+| `feedback_matching` | Feedback para fine-tuning de IA |
+| `ingestion_jobs` | Cola de trabajos asincronos |
+| `webhook_configs` | Configuracion de webhooks por tenant |
+| `webhook_failures` | Registro de webhooks fallidos |
 
-### Roles Disponibles
+### Indices Vectoriales
 
-| Rol | Nivel | Dashboard | Permisos Principales |
-|-----|-------|-----------|---------------------|
-| **super_admin** | 100 | Panel Global (todos los tenants) | Gestión completa de la plataforma, crear tenants, ver métricas globales |
-| **admin** | 80 | Dashboard de Organización | Gestionar usuarios, API keys, datos, webhooks, órdenes de su tenant |
-| **operator** | 50 | Centro de Operaciones | Procesar y validar órdenes, ver datos y estadísticas de uso |
-| **viewer** | 10 | Resumen de Solo Lectura | Ver órdenes procesadas (sin modificar) |
+Los indices IVFFlat se crean automaticamente cuando hay suficientes registros (>300):
+- `idx_prestadores_embedding` - Busqueda de prestadores por nombre
+- `idx_nomencladores_embedding` - Busqueda de nomencladores por descripcion
 
-### Dashboards por Rol
+## Variables de Entorno
 
-#### Super Admin Dashboard
-- Vista de todos los tenants de la plataforma
-- Métricas globales (requests, tokens, errores)
-- Gráfico de actividad global
-- Lista de tenants con estado
-- Performance y almacenamiento general
+| Variable | Requerido | Default | Descripcion |
+|----------|-----------|---------|-------------|
+| `OPENAI_API_KEY` | Si | - | API key de OpenAI |
+| `DATABASE_URL` | Si | - | URL de conexion PostgreSQL |
+| `JWT_SECRET` | Si | - | Secreto para firmar JWT |
+| `JWT_REFRESH_SECRET` | Si | - | Secreto para refresh tokens |
+| `PORT` | No | 3000 | Puerto del servidor |
+| `NODE_ENV` | No | development | Entorno |
+| `WORKER_CONCURRENCY` | No | 3 | Concurrencia de workers |
+| `MAX_FILE_SIZE_MB` | No | 10 | Tamano max de archivo (MB) |
+| `RATE_LIMIT_MAX_REQUESTS` | No | 30 | Requests/minuto global |
+| `LOG_LEVEL` | No | info | Nivel de logging |
+| `REDIS_URL` | No | - | URL de Redis (opcional) |
+| `DEFAULT_PRESTADOR_ID` | No | 0 | Prestador por defecto |
 
-#### Admin Dashboard
-- Estadísticas del tenant (órdenes, usuarios, API keys)
-- Datos cargados (prestadores, nomencladores, acuerdos)
-- Gráfico de actividad del tenant
-- Uso de requests y tokens
-- Órdenes recientes
-
-#### Operator Dashboard
-- Métricas de operación (órdenes totales, validadas, con correcciones)
-- Confianza promedio de procesamiento
-- Estadísticas de últimos 7 días y 24 horas
-- Lista de órdenes recientes para procesar
-- Tokens utilizados
-
-#### Viewer Dashboard
-- Resumen simple con contadores
-- Órdenes totales y validadas
-- Órdenes de últimas 24 horas
-- Lista de últimas 5 órdenes (solo lectura)
-
-### Permisos Detallados
-
-Cada rol tiene permisos específicos que se validan en backend:
-
-- **Tenants**: `tenants:read`, `tenants:write`, `tenants:delete`
-- **Usuarios**: `users:read`, `users:write`, `users:delete`
-- **API Keys**: `api_keys:read`, `api_keys:write`, `api_keys:delete`
-- **Órdenes**: `orders:read`, `orders:write`, `orders:validate`
-- **Datos**: `data:read`, `data:import`, `data:export`, `data:embeddings`
-- **Uso**: `usage:read`
-- **Webhooks**: `webhooks:read`, `webhooks:write`, `webhooks:delete`
-- **Training**: `training:read`, `training:write`
-- **Settings**: `settings:read`, `settings:write`
-- **Dashboard**: `dashboard:global`, `dashboard:tenant`
-
-## 🏢 Multi-Tenancy
-
-La plataforma está diseñada como sistema multi-tenant con aislamiento completo de datos:
-
-### Características Multi-Tenant
-
-- ✅ **Aislamiento de Datos**: Cada tenant tiene sus propios usuarios, órdenes, configuraciones
-- ✅ **Subdominios**: Detección automática de tenant por subdomain
-- ✅ **Planes Flexibles**: starter, professional, enterprise con límites configurables
-- ✅ **Métricas Aisladas**: Cada tenant solo ve sus propias estadísticas
-- ✅ **API Keys por Tenant**: Las API keys solo acceden a datos de su tenant
-- ✅ **Configuración Individual**: Cada tenant puede tener sus propias configuraciones
-
-### Estructura de Base de Datos
-
-Todas las tablas principales incluyen `tenant_id` para aislamiento:
-- `users` (usuarios por tenant)
-- `api_keys` (llaves API por tenant)
-- `orders` (órdenes médicas por tenant)
-- `data_*` (prestadores, nomencladores, etc. por tenant)
-- `webhooks` (webhooks por tenant)
-- `usage_logs` (logs de uso por tenant)
-
-## 📮 Colección Postman
-
-La colección incluye:
-- ✅ **Variables automáticas**: Los tokens se guardan automáticamente al login
-- ✅ **Todos los endpoints organizados**: Por categorías (Auth, Tenants, Users, etc.)
-- ✅ **Ejemplos completos**: Request bodies prellenados
-- ✅ **Tests automatizados**: Scripts para extraer y guardar tokens
-
-### Importar en Postman
-1. Abrir Postman
-2. File → Import
-3. Seleccionar `postman_collection.json`
-4. Configurar variable `base_url` (default: http://localhost:3000)
-5. Hacer Login → Los tokens se guardan automáticamente
-
-## 🚀 Deployment en Producción
-
-### Opciones de Deployment
-
-1. **systemd (Linux)** - Servicio nativo del sistema
-   - Ver guía: [SERVICE_SETUP.md](./SERVICE_SETUP.md)
-   - Ideal para: Servidores Linux dedicados
-
-2. **PM2** - Process Manager multiplataforma
-   - Ver guía: [PM2_GUIDE.md](./PM2_GUIDE.md)
-   - Ideal para: Desarrollo, staging, producción simple
-   - Incluye: Clustering, zero-downtime reload, monitoreo
-
-3. **Docker Compose** - Containerización completa
-   - Ver archivo: [docker-compose.yml](./docker-compose.yml)
-   - Ideal para: Desarrollo y producción dockerizada
-
-4. **Windows Service** - Servicio de Windows
-   - Ver guía: [SERVICE_SETUP.md](./SERVICE_SETUP.md#windows-windows-service)
-   - Ideal para: Servidores Windows
-
-### Quick Commands
+## Testing
 
 ```bash
-# systemd
-sudo systemctl start medical-ocr
-sudo journalctl -u medical-ocr -f
+# Tests unitarios
+npm test
 
-# PM2
-pm2 start ecosystem.config.js
+# Tests con coverage
+npm test -- --coverage
+
+# Lint
+npm run lint
+```
+
+## PM2 (Produccion sin Docker)
+
+```bash
+# Instalar PM2
+npm install -g pm2
+
+# Iniciar con cluster mode
+pm2 start ecosystem.config.js --env production
+
+# Monitorear
 pm2 monit
 
-# Docker
-docker-compose up -d
-docker-compose logs -f
+# Logs
+pm2 logs medical-ocr
+
+# Reiniciar sin downtime
+pm2 reload medical-ocr
 ```
 
-## 📝 Contribuir
+## Coleccion Postman
 
-1. Fork del repositorio
-2. Crear branch de feature (`git checkout -b feature/amazing-feature`)
-3. Commit de cambios (`git commit -m 'Add amazing feature'`)
-4. Push al branch (`git push origin feature/amazing-feature`)
-5. Abrir Pull Request
+El archivo `postman_collection.json` incluye todos los endpoints organizados. Para importar:
 
-## 📄 Licencia
+1. Abrir Postman
+2. File > Import > seleccionar `postman_collection.json`
+3. Configurar variable `base_url` (default: `http://localhost:3000`)
+4. Ejecutar "Login" primero - el token se guarda automaticamente
 
-MIT License - ver archivo `LICENSE` para detalles
+## Licencia
 
-## 🤝 Soporte
-
-Para reportar bugs o solicitar features:
-- Abrir un issue en GitHub
-- Email: support@medical-ocr.com
-
-## 🔗 Links Útiles
-
-- [Documentación OpenAI GPT-4o](https://platform.openai.com/docs/models/gpt-4o)
-- [Express.js Documentation](https://expressjs.com/)
-- [Sharp Image Processing](https://sharp.pixelplumbing.com/)
-- [Winston Logger](https://github.com/winstonjs/winston)
-
----
-
-**Desarrollado con ❤️ para mejorar la eficiencia en el sector salud**
-#   m e d i c a l - o c r - s e r v i c e  
- #   m e d i c a l - o c r - s e r v i c e  
- 
+MIT

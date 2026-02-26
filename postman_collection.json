@@ -1,52 +1,20 @@
 {
   "info": {
-    "name": "Medical OCR SaaS Platform API",
-    "description": "Colección completa de endpoints para la plataforma Medical OCR con sistema multi-tenant y RBAC",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "version": "5.0.0"
+    "name": "Medical OCR Service - API-First v6",
+    "_postman_id": "medical-ocr-api-first-v6",
+    "description": "Coleccion completa de la API del Medical OCR Service con arquitectura API-First.\n\nFlujo recomendado:\n1. Login o usar API Key\n2. Cargar datos maestros (prestadores, nomencladores, acuerdos)\n3. Enviar ordenes medicas\n4. Recibir resultados via webhook\n5. Enviar feedback",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    {
-      "key": "base_url",
-      "value": "http://localhost:3000",
-      "type": "string"
-    },
-    {
-      "key": "api_v1",
-      "value": "{{base_url}}/api/v1",
-      "type": "string"
-    },
-    {
-      "key": "access_token",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "refresh_token",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "tenant_id",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "user_id",
-      "value": "",
-      "type": "string"
-    }
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "token", "value": "" },
+    { "key": "refresh_token", "value": "" },
+    { "key": "api_key", "value": "" },
+    { "key": "tenant_id", "value": "" },
+    { "key": "batch_id", "value": "" },
+    { "key": "job_id", "value": "" },
+    { "key": "visacion_id", "value": "" }
   ],
-  "auth": {
-    "type": "bearer",
-    "bearer": [
-      {
-        "key": "token",
-        "value": "{{access_token}}",
-        "type": "string"
-      }
-    ]
-  },
   "item": [
     {
       "name": "Health & Info",
@@ -55,40 +23,29 @@
           "name": "Health Check",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/health",
-              "host": ["{{base_url}}"],
-              "path": ["health"]
-            }
-          },
-          "response": []
+            "url": "{{base_url}}/health"
+          }
+        },
+        {
+          "name": "Health Metrics",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/health/metrics"
+          }
         },
         {
           "name": "Service Info",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/",
-              "host": ["{{base_url}}"],
-              "path": [""]
-            }
-          },
-          "response": []
+            "url": "{{base_url}}/"
+          }
         },
         {
           "name": "API Version",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/version",
-              "host": ["{{api_v1}}"],
-              "path": ["version"]
-            }
-          },
-          "response": []
+            "url": "{{base_url}}/api/v1/version"
+          }
         }
       ]
     },
@@ -96,44 +53,18 @@
       "name": "Authentication",
       "item": [
         {
-          "name": "Register User",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 201) {",
-                  "    const res = pm.response.json();",
-                  "    pm.collectionVariables.set('access_token', res.data.accessToken);",
-                  "    pm.collectionVariables.set('refresh_token', res.data.refreshToken);",
-                  "    pm.collectionVariables.set('user_id', res.data.user.id);",
-                  "}"
-                ]
-              }
-            }
-          ],
+          "name": "Register",
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/register",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"Admin123!@#\",\n  \"name\": \"Administrator\",\n  \"role\": \"admin\"\n}"
-            },
-            "url": {
-              "raw": "{{api_v1}}/auth/register",
-              "host": ["{{api_v1}}"],
-              "path": ["auth", "register"]
+              "raw": "{\n  \"email\": \"admin@empresa.com\",\n  \"password\": \"Admin123!\",\n  \"name\": \"Administrador\",\n  \"role\": \"admin\"\n}"
             }
-          },
-          "response": []
+          }
         },
         {
           "name": "Login",
@@ -143,40 +74,32 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    const res = pm.response.json();",
-                  "    pm.collectionVariables.set('access_token', res.data.accessToken);",
-                  "    pm.collectionVariables.set('refresh_token', res.data.refreshToken);",
-                  "    pm.collectionVariables.set('user_id', res.data.user.id);",
-                  "    if (res.data.user.tenant_id) {",
-                  "        pm.collectionVariables.set('tenant_id', res.data.user.tenant_id);",
-                  "    }",
+                  "  var json = pm.response.json();",
+                  "  if (json.data && json.data.token) {",
+                  "    pm.collectionVariables.set('token', json.data.token);",
+                  "  }",
+                  "  if (json.data && json.data.refreshToken) {",
+                  "    pm.collectionVariables.set('refresh_token', json.data.refreshToken);",
+                  "  }",
+                  "  if (json.data && json.data.user && json.data.user.tenant_id) {",
+                  "    pm.collectionVariables.set('tenant_id', json.data.user.tenant_id);",
+                  "  }",
                   "}"
                 ]
               }
             }
           ],
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/login",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"Admin123!@#\"\n}"
-            },
-            "url": {
-              "raw": "{{api_v1}}/auth/login",
-              "host": ["{{api_v1}}"],
-              "path": ["auth", "login"]
+              "raw": "{\n  \"email\": \"admin@empresa.com\",\n  \"password\": \"Admin123!\"\n}"
             }
-          },
-          "response": []
+          }
         },
         {
           "name": "Refresh Token",
@@ -186,122 +109,64 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    const res = pm.response.json();",
-                  "    pm.collectionVariables.set('access_token', res.data.accessToken);",
+                  "  var json = pm.response.json();",
+                  "  if (json.data && json.data.token) {",
+                  "    pm.collectionVariables.set('token', json.data.token);",
+                  "  }",
                   "}"
                 ]
               }
             }
           ],
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/refresh",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}"
-            },
-            "url": {
-              "raw": "{{api_v1}}/auth/refresh",
-              "host": ["{{api_v1}}"],
-              "path": ["auth", "refresh"]
             }
-          },
-          "response": []
+          }
         },
         {
-          "name": "Get Current User",
+          "name": "My Profile",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/auth/me",
-              "host": ["{{api_v1}}"],
-              "path": ["auth", "me"]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get User Permissions",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/auth/permissions",
-              "host": ["{{api_v1}}"],
-              "path": ["auth", "permissions"]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Change Password",
-          "request": {
-            "method": "PUT",
+            "url": "{{base_url}}/api/v1/auth/me",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"currentPassword\": \"Admin123!@#\",\n  \"newPassword\": \"NewPassword123!@#\"\n}"
-            },
-            "url": {
-              "raw": "{{api_v1}}/auth/password",
-              "host": ["{{api_v1}}"],
-              "path": ["auth", "password"]
-            }
-          },
-          "response": []
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        },
+        {
+          "name": "My Permissions",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/auth/permissions",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
         }
       ]
     },
     {
-      "name": "Tenants (Super Admin)",
+      "name": "Data Ingestion",
+      "description": "Endpoints de ingesta batch de datos maestros. Usan UPSERT via id_externo.",
       "item": [
         {
-          "name": "List Tenants",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/tenants?page=1&limit=20",
-              "host": ["{{api_v1}}"],
-              "path": ["tenants"],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Create Tenant",
+          "name": "Batch Prestadores",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "if (pm.response.code === 201) {",
-                  "    const res = pm.response.json();",
-                  "    pm.collectionVariables.set('tenant_id', res.data.id);",
+                  "if (pm.response.code === 202) {",
+                  "  var json = pm.response.json();",
+                  "  pm.collectionVariables.set('job_id', json.job_id);",
+                  "  pm.collectionVariables.set('batch_id', json.batch_id);",
                   "}"
                 ]
               }
@@ -309,84 +174,274 @@
           ],
           "request": {
             "method": "POST",
+            "url": "{{base_url}}/api/v1/data/prestadores/batch",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Hospital Central\",\n  \"slug\": \"hospital-central\",\n  \"plan\": \"professional\",\n  \"status\": \"active\",\n  \"settings\": {\n    \"max_users\": 50,\n    \"max_requests_per_month\": 100000,\n    \"features\": [\"ocr\", \"validation\", \"api_access\"]\n  }\n}"
-            },
-            "url": {
-              "raw": "{{api_v1}}/tenants",
-              "host": ["{{api_v1}}"],
-              "path": ["tenants"]
+              "raw": "{\n  \"source_ref\": \"SYNC_2024_01\",\n  \"prestadores\": [\n    {\n      \"id_externo\": \"PREST-001\",\n      \"ruc\": \"80012345-6\",\n      \"nombre_fantasia\": \"Sanatorio Americano\",\n      \"razon_social\": \"Sanatorio Americano S.A.\",\n      \"registro_profesional\": \"REG-12345\",\n      \"tipo\": \"SANATORIO\",\n      \"ranking\": 95.5,\n      \"estado\": \"ACTIVO\"\n    },\n    {\n      \"id_externo\": \"PREST-002\",\n      \"ruc\": \"80098765-4\",\n      \"nombre_fantasia\": \"Dr. Juan Martinez\",\n      \"razon_social\": \"Juan Martinez\",\n      \"registro_profesional\": \"MAT-54321\",\n      \"tipo\": \"MEDICO\",\n      \"ranking\": 88.0,\n      \"estado\": \"ACTIVO\"\n    }\n  ]\n}"
             }
-          },
-          "response": []
+          }
         },
         {
-          "name": "Get Tenant by ID",
+          "name": "Batch Nomencladores",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 202) {",
+                  "  var json = pm.response.json();",
+                  "  pm.collectionVariables.set('job_id', json.job_id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/data/nomencladores/batch",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source_ref\": \"SYNC_2024_01\",\n  \"nomencladores\": [\n    {\n      \"id_externo\": \"NOM-001\",\n      \"id_servicio\": 10,\n      \"especialidad\": \"LABORATORIO\",\n      \"descripcion\": \"Hemograma completo\",\n      \"desc_nomenclador\": \"Hemograma completo con recuento diferencial de leucocitos\",\n      \"grupo\": \"A\",\n      \"subgrupo\": \"A1\",\n      \"sinonimos\": [\"CBC\", \"biometria hematica\", \"cuadro hematico\"],\n      \"palabras_clave\": [\"sangre\", \"hematologia\", \"leucocitos\"],\n      \"estado\": \"ACTIVO\"\n    },\n    {\n      \"id_externo\": \"NOM-002\",\n      \"id_servicio\": 20,\n      \"especialidad\": \"IMAGENOLOGIA\",\n      \"descripcion\": \"Radiografia de torax frente y perfil\",\n      \"desc_nomenclador\": \"Radiografia de torax PA y lateral\",\n      \"grupo\": \"B\",\n      \"subgrupo\": \"B1\",\n      \"sinonimos\": [\"RX torax\", \"placa de torax\", \"chest X-ray\"],\n      \"palabras_clave\": [\"torax\", \"pulmon\", \"radiografia\"],\n      \"estado\": \"ACTIVO\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Batch Acuerdos",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/data/acuerdos/batch",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source_ref\": \"SYNC_2024_01\",\n  \"acuerdos\": [\n    {\n      \"id_prestador_externo\": \"PREST-001\",\n      \"id_nomenclador_externo\": \"NOM-001\",\n      \"plan_id\": 1,\n      \"precio\": 150000,\n      \"precio_normal\": 150000,\n      \"precio_diferenciado\": 120000,\n      \"precio_internado\": 100000,\n      \"vigente\": \"SI\",\n      \"fecha_vigencia\": \"2024-01-01\"\n    },\n    {\n      \"id_prestador_externo\": \"PREST-001\",\n      \"id_nomenclador_externo\": \"NOM-002\",\n      \"plan_id\": 1,\n      \"precio\": 250000,\n      \"precio_normal\": 250000,\n      \"vigente\": \"SI\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Job Status",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/tenants/{{tenant_id}}",
-              "host": ["{{api_v1}}"],
-              "path": ["tenants", "{{tenant_id}}"]
-            }
-          },
-          "response": []
+            "url": "{{base_url}}/api/v1/data/jobs/{{job_id}}/status",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
         },
         {
-          "name": "Update Tenant",
+          "name": "Database Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/data/stats",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Order Processing",
+      "description": "Envio de ordenes medicas para OCR y pre-visacion asincrona.",
+      "item": [
+        {
+          "name": "Batch Ordenes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 202) {",
+                  "  var json = pm.response.json();",
+                  "  pm.collectionVariables.set('batch_id', json.batch_id);",
+                  "  if (json.jobs && json.jobs.length > 0) {",
+                  "    pm.collectionVariables.set('job_id', json.jobs[0].job_id);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/ordenes/batch",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ordenes\": [\n    {\n      \"id_externo\": \"ORD-2024-00001\",\n      \"archivo_base64\": \"/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//\",\n      \"archivo_nombre\": \"orden_medica_001.jpg\",\n      \"archivo_tipo\": \"image/jpeg\",\n      \"metadata\": {\n        \"plan_id\": 1,\n        \"ci_paciente\": \"4567890\",\n        \"prioridad\": \"NORMAL\"\n      }\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Batch Status",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/ordenes/batch/{{batch_id}}/status",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Feedback",
+      "description": "Aprobar, rechazar o corregir pre-visaciones.",
+      "item": [
+        {
+          "name": "Aprobar Pre-visacion",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/ordenes/{{visacion_id}}/feedback",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accion\": \"APROBAR\",\n  \"usuario\": \"dr.martinez\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Rechazar Pre-visacion",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/ordenes/{{visacion_id}}/feedback",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accion\": \"RECHAZAR\",\n  \"usuario\": \"dr.martinez\",\n  \"motivo\": \"Orden ilegible, solicitar nueva imagen\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Corregir Pre-visacion",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/ordenes/{{visacion_id}}/feedback",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accion\": \"CORREGIR\",\n  \"usuario\": \"dr.martinez\",\n  \"motivo\": \"Nomenclador incorrecto en item 2\",\n  \"correcciones\": [\n    {\n      \"item\": 2,\n      \"id_nomenclador_correcto\": 456,\n      \"cantidad_correcta\": 2,\n      \"razon\": \"Es ecografia abdominal, no ecografia renal\"\n    }\n  ]\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks Management",
+      "description": "CRUD de configuracion de webhooks por tenant.",
+      "item": [
+        {
+          "name": "List Webhooks",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/webhooks",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Create Webhook",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/webhooks",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://tu-sistema.com/webhooks/medical-ocr\",\n  \"events\": [\"previsacion.generada\", \"previsacion.fallida\", \"previsacion.feedback_recibido\"],\n  \"secret\": \"mi-secreto-webhook-hmac\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Webhook",
           "request": {
             "method": "PUT",
+            "url": "{{base_url}}/api/v1/webhooks/1",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Hospital Central - Updated\",\n  \"plan\": \"enterprise\",\n  \"status\": \"active\",\n  \"settings\": {\n    \"max_users\": 100,\n    \"max_requests_per_month\": 500000\n  }\n}"
-            },
-            "url": {
-              "raw": "{{api_v1}}/tenants/{{tenant_id}}",
-              "host": ["{{api_v1}}"],
-              "path": ["tenants", "{{tenant_id}}"]
+              "raw": "{\n  \"events\": [\"*\"],\n  \"status\": \"active\"\n}"
             }
-          },
-          "response": []
+          }
         },
         {
-          "name": "Get Tenant Stats",
+          "name": "Delete Webhook",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/webhooks/1",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tenants",
+      "description": "Gestion de tenants (requiere super_admin).",
+      "item": [
+        {
+          "name": "List Tenants",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/tenants/stats",
-              "host": ["{{api_v1}}"],
-              "path": ["tenants", "stats"]
-            }
-          },
-          "response": []
+            "url": "{{base_url}}/api/v1/tenants",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
         },
         {
-          "name": "Get Tenant Dashboard",
+          "name": "Create Tenant",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/tenants",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Hospital Central\",\n  \"slug\": \"hospital-central\",\n  \"plan\": \"professional\",\n  \"settings\": {\n    \"max_users\": 50,\n    \"max_api_keys\": 10\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Tenant",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/tenants/dashboard",
-              "host": ["{{api_v1}}"],
-              "path": ["tenants", "dashboard"]
-            }
-          },
-          "response": []
+            "url": "{{base_url}}/api/v1/tenants/{{tenant_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
         }
       ]
     },
@@ -397,99 +452,46 @@
           "name": "List Users",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/users?page=1&limit=20",
-              "host": ["{{api_v1}}"],
-              "path": ["users"],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                },
-                {
-                  "key": "role",
-                  "value": "admin",
-                  "disabled": true
-                }
-              ]
-            }
-          },
-          "response": []
+            "url": "{{base_url}}/api/v1/users",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
         },
         {
           "name": "Create User",
           "request": {
             "method": "POST",
+            "url": "{{base_url}}/api/v1/users",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"operator@hospital.com\",\n  \"password\": \"Operator123!@#\",\n  \"name\": \"Juan Perez\",\n  \"role\": \"operator\"\n}"
-            },
-            "url": {
-              "raw": "{{api_v1}}/users",
-              "host": ["{{api_v1}}"],
-              "path": ["users"]
+              "raw": "{\n  \"email\": \"operador@empresa.com\",\n  \"password\": \"Operator123!\",\n  \"name\": \"Operador\",\n  \"role\": \"operator\"\n}"
             }
-          },
-          "response": []
+          }
         },
         {
-          "name": "Get User by ID",
+          "name": "Get User",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/users/{{user_id}}",
-              "host": ["{{api_v1}}"],
-              "path": ["users", "{{user_id}}"]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Update User",
-          "request": {
-            "method": "PUT",
+            "url": "{{base_url}}/api/v1/users/1",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Juan Perez Updated\",\n  \"role\": \"admin\",\n  \"status\": \"active\"\n}"
-            },
-            "url": {
-              "raw": "{{api_v1}}/users/{{user_id}}",
-              "host": ["{{api_v1}}"],
-              "path": ["users", "{{user_id}}"]
-            }
-          },
-          "response": []
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
         },
         {
           "name": "Delete User",
           "request": {
             "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/users/{{user_id}}",
-              "host": ["{{api_v1}}"],
-              "path": ["users", "{{user_id}}"]
-            }
-          },
-          "response": []
+            "url": "{{base_url}}/api/v1/users/1",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
         }
       ]
     },
@@ -500,213 +502,51 @@
           "name": "List API Keys",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/api-keys",
-              "host": ["{{api_v1}}"],
-              "path": ["api-keys"]
-            }
-          },
-          "response": []
+            "url": "{{base_url}}/api/v1/api-keys",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
         },
         {
           "name": "Create API Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  var json = pm.response.json();",
+                  "  if (json.data && json.data.key) {",
+                  "    pm.collectionVariables.set('api_key', json.data.key);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
+            "url": "{{base_url}}/api/v1/api-keys",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Production API Key\",\n  \"scopes\": [\"read\", \"write\", \"validate\"],\n  \"expiresInDays\": 365\n}"
-            },
-            "url": {
-              "raw": "{{api_v1}}/api-keys",
-              "host": ["{{api_v1}}"],
-              "path": ["api-keys"]
+              "raw": "{\n  \"name\": \"Integracion APEX\",\n  \"scopes\": [\"data:import\", \"orders:write\", \"orders:read\"],\n  \"expiresIn\": \"365d\"\n}"
             }
-          },
-          "response": []
+          }
         },
         {
-          "name": "Revoke API Key",
+          "name": "Delete API Key",
           "request": {
             "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/api-keys/:keyId",
-              "host": ["{{api_v1}}"],
-              "path": ["api-keys", ":keyId"],
-              "variable": [
-                {
-                  "key": "keyId",
-                  "value": ""
-                }
-              ]
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Orders",
-      "item": [
-        {
-          "name": "List Orders",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/orders?page=1&limit=20",
-              "host": ["{{api_v1}}"],
-              "path": ["orders"],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                },
-                {
-                  "key": "validado",
-                  "value": "true",
-                  "disabled": true
-                },
-                {
-                  "key": "search",
-                  "value": "",
-                  "disabled": true
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Order by ID",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/orders/:orderId",
-              "host": ["{{api_v1}}"],
-              "path": ["orders", ":orderId"],
-              "variable": [
-                {
-                  "key": "orderId",
-                  "value": ""
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Order Stats",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/orders/stats",
-              "host": ["{{api_v1}}"],
-              "path": ["orders", "stats"]
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Data Management",
-      "item": [
-        {
-          "name": "Import Excel File",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "file",
-                  "type": "file",
-                  "src": []
-                },
-                {
-                  "key": "type",
-                  "value": "prestadores",
-                  "type": "text"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{api_v1}}/data/import",
-              "host": ["{{api_v1}}"],
-              "path": ["data", "import"]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Generate Embeddings",
-          "request": {
-            "method": "POST",
+            "url": "{{base_url}}/api/v1/api-keys/1",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"force\": false\n}"
-            },
-            "url": {
-              "raw": "{{api_v1}}/data/embeddings",
-              "host": ["{{api_v1}}"],
-              "path": ["data", "embeddings"]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Export Data",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/data/export/:type",
-              "host": ["{{api_v1}}"],
-              "path": ["data", "export", ":type"],
-              "variable": [
-                {
-                  "key": "type",
-                  "value": "prestadores",
-                  "description": "prestadores, nomencladores, or acuerdos"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Data Stats",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/data/stats",
-              "host": ["{{api_v1}}"],
-              "path": ["data", "stats"]
-            }
-          },
-          "response": []
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
         }
       ]
     },
@@ -714,245 +554,110 @@
       "name": "Usage & Metrics",
       "item": [
         {
-          "name": "Get Usage Logs",
+          "name": "Usage Logs",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/usage?page=1&limit=50",
-              "host": ["{{api_v1}}"],
-              "path": ["usage"],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "50"
-                },
-                {
-                  "key": "endpoint",
-                  "value": "",
-                  "disabled": true
-                }
-              ]
-            }
-          },
-          "response": []
+            "url": "{{base_url}}/api/v1/usage",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
         },
         {
-          "name": "Get Usage Summary",
+          "name": "Usage Summary",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/usage/summary",
-              "host": ["{{api_v1}}"],
-              "path": ["usage", "summary"]
-            }
-          },
-          "response": []
+            "url": "{{base_url}}/api/v1/usage/summary",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
         },
         {
-          "name": "Get Daily Usage",
+          "name": "Daily Usage",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/usage/daily?days=30",
-              "host": ["{{api_v1}}"],
-              "path": ["usage", "daily"],
-              "query": [
-                {
-                  "key": "days",
-                  "value": "30"
-                }
-              ]
-            }
-          },
-          "response": []
+            "url": "{{base_url}}/api/v1/usage/daily?days=7",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
         },
         {
-          "name": "Get Quota Info",
+          "name": "Quota",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/usage/quota",
-              "host": ["{{api_v1}}"],
-              "path": ["usage", "quota"]
-            }
-          },
-          "response": []
+            "url": "{{base_url}}/api/v1/usage/quota",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
         }
       ]
     },
     {
-      "name": "Webhooks",
+      "name": "Orders (Read)",
       "item": [
         {
-          "name": "List Webhooks",
+          "name": "List Orders",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/webhooks",
-              "host": ["{{api_v1}}"],
-              "path": ["webhooks"]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Create Webhook",
-          "request": {
-            "method": "POST",
+            "url": "{{base_url}}/api/v1/orders",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"url\": \"https://your-domain.com/webhook\",\n  \"events\": [\"order.created\", \"order.validated\"],\n  \"secret\": \"your_webhook_secret_here\",\n  \"active\": true\n}"
-            },
-            "url": {
-              "raw": "{{api_v1}}/webhooks",
-              "host": ["{{api_v1}}"],
-              "path": ["webhooks"]
-            }
-          },
-          "response": []
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
         },
         {
-          "name": "Update Webhook",
+          "name": "Get Order",
           "request": {
-            "method": "PUT",
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/orders/1",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"url\": \"https://your-domain.com/webhook-updated\",\n  \"events\": [\"order.created\"],\n  \"active\": false\n}"
-            },
-            "url": {
-              "raw": "{{api_v1}}/webhooks/:webhookId",
-              "host": ["{{api_v1}}"],
-              "path": ["webhooks", ":webhookId"],
-              "variable": [
-                {
-                  "key": "webhookId",
-                  "value": ""
-                }
-              ]
-            }
-          },
-          "response": []
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
         },
         {
-          "name": "Delete Webhook",
+          "name": "Orders Stats",
           "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{api_v1}}/webhooks/:webhookId",
-              "host": ["{{api_v1}}"],
-              "path": ["webhooks", ":webhookId"],
-              "variable": [
-                {
-                  "key": "webhookId",
-                  "value": ""
-                }
-              ]
-            }
-          },
-          "response": []
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/orders/stats",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
         }
       ]
     },
     {
-      "name": "Legacy API (v0)",
+      "name": "Auth with API Key (example)",
+      "description": "Ejemplo usando X-Api-Key en vez de Bearer JWT.",
       "item": [
         {
-          "name": "Process Medical Order (OCR)",
+          "name": "Database Stats (API Key)",
           "request": {
-            "auth": {
-              "type": "apikey",
-              "apikey": [
-                {
-                  "key": "value",
-                  "value": "your-api-key-here",
-                  "type": "string"
-                },
-                {
-                  "key": "key",
-                  "value": "x-api-key",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "file",
-                  "type": "file",
-                  "src": []
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/api/visacion",
-              "host": ["{{base_url}}"],
-              "path": ["api", "visacion"]
-            }
-          },
-          "response": []
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/data/stats",
+            "header": [
+              { "key": "X-Api-Key", "value": "{{api_key}}" }
+            ]
+          }
         },
         {
-          "name": "Pre-Validation",
+          "name": "Batch Prestadores (API Key)",
           "request": {
-            "auth": {
-              "type": "apikey",
-              "apikey": [
-                {
-                  "key": "value",
-                  "value": "your-api-key-here",
-                  "type": "string"
-                },
-                {
-                  "key": "key",
-                  "value": "x-api-key",
-                  "type": "string"
-                }
-              ]
-            },
             "method": "POST",
-            "header": [],
+            "url": "{{base_url}}/api/v1/data/prestadores/batch",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Api-Key", "value": "{{api_key}}" }
+            ],
             "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "file",
-                  "type": "file",
-                  "src": []
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{base_url}}/api/pre-visacion",
-              "host": ["{{base_url}}"],
-              "path": ["api", "pre-visacion"]
+              "mode": "raw",
+              "raw": "{\n  \"prestadores\": [\n    {\n      \"id_externo\": \"PREST-100\",\n      \"nombre_fantasia\": \"Laboratorio Central\",\n      \"tipo\": \"LABORATORIO\",\n      \"estado\": \"ACTIVO\"\n    }\n  ]\n}"
             }
-          },
-          "response": []
+          }
         }
       ]
     }
