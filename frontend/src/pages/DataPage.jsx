@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
+import {
+  Card, Title, Text, Metric, Button, Callout, Grid,
+} from '@tremor/react';
 import { Upload, Download, Zap, Database, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function DataPage() {
@@ -78,46 +81,47 @@ export default function DataPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Datos</h1>
-        <p className="text-gray-500 mt-1">Importar, exportar y gestionar nomencladores, prestadores y acuerdos</p>
+        <Text>Importar, exportar y gestionar nomencladores, prestadores y acuerdos</Text>
       </div>
 
       {result && (
-        <div className={`flex items-center gap-3 p-4 rounded-lg ${result.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-          {result.success ? <CheckCircle className="w-5 h-5 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 flex-shrink-0" />}
-          <div>
-            {result.imported !== undefined && <p className="font-medium">{result.imported} registros importados</p>}
-            {result.errors?.length > 0 && <p className="text-sm mt-0.5">{result.errors.length} errores</p>}
-            {result.message && <p>{result.message}</p>}
-          </div>
-        </div>
+        <Callout
+          title={result.success ? 'Operacion exitosa' : 'Error'}
+          color={result.success ? 'green' : 'red'}
+          icon={result.success ? CheckCircle : AlertCircle}
+        >
+          {result.imported !== undefined && `${result.imported} registros importados. `}
+          {result.errors?.length > 0 && `${result.errors.length} errores. `}
+          {result.message && result.message}
+        </Callout>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <Grid numItemsSm={2} numItemsLg={4} className="gap-4">
         {[
           { label: 'Prestadores', value: stats?.prestadores },
           { label: 'Nomencladores', value: stats?.nomencladores },
           { label: 'Con Embeddings', value: stats?.nom_with_embeddings },
           { label: 'Acuerdos', value: stats?.acuerdos },
         ].map(({ label, value }) => (
-          <div key={label} className="card p-5">
+          <Card key={label}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-brand-50 flex items-center justify-center">
                 <Database className="w-5 h-5 text-brand-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-500">{label}</p>
-                <p className="text-xl font-bold text-gray-900">{value ?? 0}</p>
+                <Text>{label}</Text>
+                <Metric className="text-xl">{value ?? 0}</Metric>
               </div>
             </div>
-          </div>
+          </Card>
         ))}
-      </div>
+      </Grid>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Importar Datos</h2>
-          <p className="text-sm text-gray-500 mb-4">Sube archivos Excel (.xlsx) para importar datos</p>
-          <div className="space-y-3">
+      <Grid numItemsSm={1} numItemsLg={2} className="gap-6">
+        <Card>
+          <Title>Importar Datos</Title>
+          <Text className="mt-1">Sube archivos Excel (.xlsx) para importar datos</Text>
+          <div className="space-y-3 mt-4">
             {['prestadores', 'nomencladores', 'acuerdos'].map((type) => (
               <button
                 key={type}
@@ -131,11 +135,11 @@ export default function DataPage() {
               </button>
             ))}
           </div>
-        </div>
+        </Card>
 
-        <div className="card p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Acciones</h2>
-          <div className="space-y-3">
+        <Card>
+          <Title>Acciones</Title>
+          <div className="space-y-3 mt-4">
             <button
               onClick={handleGenerateEmbeddings}
               disabled={generating}
@@ -148,7 +152,7 @@ export default function DataPage() {
               </div>
             </button>
 
-            <h3 className="text-sm font-medium text-gray-500 pt-3">Exportar Datos</h3>
+            <Text className="font-medium pt-3">Exportar Datos</Text>
             {['prestadores', 'nomencladores', 'acuerdos'].map((type) => (
               <button
                 key={type}
@@ -161,8 +165,8 @@ export default function DataPage() {
               </button>
             ))}
           </div>
-        </div>
-      </div>
+        </Card>
+      </Grid>
     </div>
   );
 }

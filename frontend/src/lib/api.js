@@ -26,7 +26,7 @@ async function request(path, options = {}) {
   const data = await res.json();
 
   if (!res.ok) {
-    throw new Error(data.error?.message || 'Request failed');
+    throw new Error(data.error?.message || data.message || 'Request failed');
   }
 
   return data;
@@ -36,6 +36,7 @@ export const api = {
   get: (path) => request(path),
   post: (path, body) => request(path, { method: 'POST', body: JSON.stringify(body) }),
   put: (path, body) => request(path, { method: 'PUT', body: JSON.stringify(body) }),
+  patch: (path, body) => request(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: (path) => request(path, { method: 'DELETE' }),
 
   upload: async (path, file, extraFields = {}) => {
@@ -53,5 +54,25 @@ export const api = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error?.message || 'Upload failed');
     return data;
+  },
+
+  // Data Ingestion API-First endpoints
+  ingest: {
+    prestadores: (batch) => request('/data-ingest/prestadores/batch', { method: 'POST', body: JSON.stringify(batch) }),
+    nomencladores: (batch) => request('/data-ingest/nomencladores/batch', { method: 'POST', body: JSON.stringify(batch) }),
+    acuerdos: (batch) => request('/data-ingest/acuerdos/batch', { method: 'POST', body: JSON.stringify(batch) }),
+    jobStatus: (jobId) => request(`/data-ingest/jobs/${jobId}/status`),
+    stats: () => request('/data-ingest/stats'),
+  },
+
+  // Ordenes Batch Processing
+  ordenesBatch: {
+    submit: (orders) => request('/ordenes/batch', { method: 'POST', body: JSON.stringify(orders) }),
+    status: (batchId) => request(`/ordenes/batch/${batchId}/status`),
+  },
+
+  // Feedback / Pre-visacion
+  feedback: {
+    submit: (idVisacion, body) => request(`/feedback/${idVisacion}/feedback`, { method: 'POST', body: JSON.stringify(body) }),
   },
 };
