@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Webhook: previsacion.generada",
+  "description": "Webhook payload sent when a pre-visacion is successfully generated",
+  "type": "object",
+  "required": ["event", "timestamp", "data"],
+  "properties": {
+    "event": {
+      "type": "string",
+      "const": "previsacion.generada"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^sha256=.+$"
+    },
+    "data": {
+      "type": "object",
+      "required": ["batch_id", "job_id", "id_externo_orden", "id_visacion_previa", "estado", "confianza_general", "requiere_revision", "cabecera", "detalle_practicas"],
+      "properties": {
+        "batch_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "job_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "id_externo_orden": {
+          "type": "string",
+          "description": "External order ID from source system"
+        },
+        "id_visacion_previa": {
+          "type": "integer"
+        },
+        "estado": {
+          "type": "string",
+          "const": "PENDIENTE"
+        },
+        "confianza_general": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "requiere_revision": {
+          "type": "boolean"
+        },
+        "cabecera": {
+          "type": "object",
+          "properties": {
+            "paciente": {
+              "type": "object",
+              "properties": {
+                "ci": { "type": ["string", "null"] },
+                "nombre": { "type": ["string", "null"] },
+                "fecha_nacimiento": { "type": ["string", "null"] }
+              }
+            },
+            "medico": {
+              "type": "object",
+              "properties": {
+                "nombre": { "type": ["string", "null"] },
+                "matricula": { "type": ["string", "null"] },
+                "id_prestador_encontrado": { "type": ["integer", "null"] },
+                "confianza": { "type": "number" }
+              }
+            },
+            "prestador_emisor": {
+              "type": "object",
+              "properties": {
+                "nombre_original": { "type": ["string", "null"] },
+                "id_prestador_encontrado": { "type": ["integer", "null"] },
+                "nombre_fantasia": { "type": ["string", "null"] },
+                "ruc": { "type": ["string", "null"] },
+                "confianza": { "type": "number" }
+              }
+            },
+            "fecha_orden": {
+              "type": ["string", "null"],
+              "description": "Format: YYYY-MM-DD"
+            },
+            "diagnostico": {
+              "type": "object",
+              "properties": {
+                "descripcion": { "type": ["string", "null"] },
+                "codigo_cie10": { "type": ["string", "null"] }
+              }
+            }
+          }
+        },
+        "detalle_practicas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["item", "descripcion_original", "cantidad", "confianza"],
+            "properties": {
+              "item": { "type": "integer" },
+              "descripcion_original": { "type": "string" },
+              "cantidad": { "type": "number" },
+              "nomenclador_sugerido": {
+                "type": ["object", "null"],
+                "properties": {
+                  "id_nomenclador": { "type": ["integer", "null"] },
+                  "descripcion": { "type": ["string", "null"] },
+                  "especialidad": { "type": ["string", "null"] },
+                  "grupo": { "type": ["string", "null"] },
+                  "subgrupo": { "type": ["string", "null"] }
+                }
+              },
+              "confianza": { "type": "number", "minimum": 0, "maximum": 1 },
+              "tiene_acuerdo": { "type": "boolean" },
+              "precio_acuerdo": { "type": ["number", "null"] },
+              "matches_alternativos": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id_nomenclador": { "type": "integer" },
+                    "descripcion": { "type": "string" },
+                    "similitud": { "type": "number" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "alertas": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "observaciones_ia": {
+          "type": "string"
+        },
+        "ia_metadata": {
+          "type": "object",
+          "properties": {
+            "modelo_usado": { "type": "string" },
+            "tokens_usados": { "type": "integer" },
+            "tiempo_procesamiento_ms": { "type": "integer" }
+          }
+        }
+      }
+    }
+  }
+}

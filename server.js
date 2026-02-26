@@ -5,6 +5,8 @@ const pdfService = require('./src/services/pdf.service');
 const fs = require('fs-extra');
 const path = require('path');
 
+const jobQueueService = require('./src/services/job-queue.service');
+
 const PORT = process.env.PORT || 3000;
 
 // Crear directorios necesarios
@@ -47,11 +49,19 @@ async function startServer() {
     await initializeDirectories();
     await checkSystemDependencies();
 
+    // Initialize workers (registers handlers on the job queue)
+    require('./src/workers/embedding.worker');
+    require('./src/workers/previsacion.worker');
+
+    // Start the job queue processor
+    jobQueueService.start();
+
     const server = app.listen(PORT, () => {
-      logger.info(`🚀 Medical OCR Service running on port ${PORT}`);
-      logger.info(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
-      logger.info(`🔑 OpenAI API Key: ${process.env.OPENAI_API_KEY ? 'Configured ✓' : 'Missing ✗'}`);
-      logger.info(`📂 Temp directory: ${process.env.TEMP_DIR || './temp'}`);
+      logger.info(`Medical OCR Service running on port ${PORT}`);
+      logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`OpenAI API Key: ${process.env.OPENAI_API_KEY ? 'Configured' : 'Missing'}`);
+      logger.info(`Temp directory: ${process.env.TEMP_DIR || './temp'}`);
+      logger.info(`Job queue started with concurrency: ${process.env.WORKER_CONCURRENCY || 3}`);
     });
 
     // Graceful shutdown
@@ -60,7 +70,10 @@ async function startServer() {
       
       server.close(async () => {
         logger.info('HTTP server closed');
-        
+
+        // Stop job queue
+        jobQueueService.stop();
+
         // Limpiar archivos temporales
         try {
           const tempDir = process.env.TEMP_DIR || './temp';

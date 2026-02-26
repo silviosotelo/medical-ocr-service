@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Acuerdos Batch Request",
+  "description": "Schema for batch upsert of provider-nomenclador agreements",
+  "type": "object",
+  "required": ["acuerdos"],
+  "properties": {
+    "source_ref": {
+      "type": ["string", "null"],
+      "description": "Reference identifier from the source system"
+    },
+    "acuerdos": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5000,
+      "items": {
+        "type": "object",
+        "required": ["id_prestador_externo", "id_nomenclador_externo"],
+        "properties": {
+          "id_prestador_externo": {
+            "type": "string",
+            "description": "External ID of the provider (must exist in prestadores)"
+          },
+          "id_nomenclador_externo": {
+            "type": "string",
+            "description": "External ID of the nomenclador (must exist in nomencladores)"
+          },
+          "plan_id": {
+            "type": ["integer", "null"],
+            "description": "Insurance plan ID"
+          },
+          "precio": {
+            "type": ["number", "null"],
+            "description": "Base price"
+          },
+          "precio_normal": {
+            "type": ["number", "null"],
+            "description": "Normal price"
+          },
+          "precio_diferenciado": {
+            "type": ["number", "null"],
+            "description": "Differentiated price"
+          },
+          "precio_internado": {
+            "type": ["number", "null"],
+            "description": "Inpatient price"
+          },
+          "vigente": {
+            "type": "string",
+            "default": "SI",
+            "enum": ["SI", "NO"]
+          },
+          "fecha_vigencia": {
+            "type": ["string", "null"],
+            "format": "date",
+            "description": "Effective date (YYYY-MM-DD)"
+          }
+        }
+      }
+    }
+  }
+}

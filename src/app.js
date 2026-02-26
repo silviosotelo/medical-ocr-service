@@ -33,14 +33,14 @@ const corsOptions = {
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Api-Key'],
   credentials: true,
   maxAge: 86400,
 };
 app.use(cors(corsOptions));
 app.use(compression());
-app.use(express.json({ limit: '5mb' }));
-app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 app.use(cookieParser());
 app.use(requestLogger);
 app.disable('x-powered-by');
@@ -52,7 +52,8 @@ app.use('/health', healthRoutes);
 app.get('/', (req, res) => {
   res.json({
     service: 'Medical OCR SaaS Platform',
-    version: '5.0.0',
+    version: '6.0.0',
+    architecture: 'API-First',
     status: 'running',
     endpoints: {
       v1: '/api/v1',

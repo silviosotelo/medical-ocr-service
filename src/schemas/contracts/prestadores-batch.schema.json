@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Prestadores Batch Request",
+  "description": "Schema for batch upsert of prestadores (providers)",
+  "type": "object",
+  "required": ["prestadores"],
+  "properties": {
+    "source_ref": {
+      "type": ["string", "null"],
+      "description": "Reference identifier from the source system"
+    },
+    "prestadores": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5000,
+      "items": {
+        "type": "object",
+        "required": ["id_externo", "nombre_fantasia"],
+        "properties": {
+          "id_externo": {
+            "type": "string",
+            "description": "External system identifier (Oracle, APEX, etc.)"
+          },
+          "ruc": {
+            "type": ["string", "null"],
+            "description": "Tax identification number"
+          },
+          "nombre_fantasia": {
+            "type": "string",
+            "description": "Trade name / display name"
+          },
+          "razon_social": {
+            "type": ["string", "null"],
+            "description": "Legal name"
+          },
+          "registro_profesional": {
+            "type": ["string", "null"],
+            "description": "Professional registration number"
+          },
+          "tipo": {
+            "type": ["string", "null"],
+            "description": "Provider type (e.g., MEDICO, LABORATORIO)"
+          },
+          "ranking": {
+            "type": ["number", "null"],
+            "description": "Provider ranking score"
+          },
+          "estado": {
+            "type": "string",
+            "default": "ACTIVO",
+            "enum": ["ACTIVO", "INACTIVO"]
+          }
+        }
+      }
+    }
+  }
+}
