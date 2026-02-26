@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Ordenes Batch Request",
+  "description": "Schema for batch submission of medical orders for OCR processing and pre-visacion",
+  "type": "object",
+  "required": ["ordenes"],
+  "properties": {
+    "ordenes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "required": ["id_externo", "archivo_base64", "archivo_nombre"],
+        "properties": {
+          "id_externo": {
+            "type": "string",
+            "description": "External system identifier for correlation"
+          },
+          "archivo_base64": {
+            "type": "string",
+            "maxLength": 13700000,
+            "description": "Base64-encoded file content (max ~10MB)"
+          },
+          "archivo_nombre": {
+            "type": "string",
+            "description": "Original filename with extension"
+          },
+          "archivo_tipo": {
+            "type": ["string", "null"],
+            "description": "MIME type (e.g., image/jpeg, application/pdf)"
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "plan_id": {
+                "type": ["integer", "null"],
+                "description": "Insurance plan ID for agreement lookup"
+              },
+              "ci_paciente": {
+                "type": ["string", "null"],
+                "description": "Patient identification number"
+              },
+              "prioridad": {
+                "type": "string",
+                "enum": ["NORMAL", "URGENTE"],
+                "default": "NORMAL"
+              }
+            }
+          }
+        }
+      }
+    },
+    "webhook_url": {
+      "type": ["string", "null"],
+      "format": "uri",
+      "description": "Optional webhook URL override for this batch"
+    }
+  }
+}

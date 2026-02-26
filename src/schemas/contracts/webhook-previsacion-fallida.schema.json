@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Webhook: previsacion.fallida",
+  "description": "Webhook payload sent when a pre-visacion processing fails after all retries",
+  "type": "object",
+  "required": ["event", "timestamp", "data"],
+  "properties": {
+    "event": {
+      "type": "string",
+      "const": "previsacion.fallida"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "data": {
+      "type": "object",
+      "required": ["batch_id", "job_id", "id_externo_orden", "error", "intentos"],
+      "properties": {
+        "batch_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "job_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "id_externo_orden": {
+          "type": "string",
+          "description": "External order ID from source system"
+        },
+        "error": {
+          "type": "string",
+          "description": "Error description"
+        },
+        "intentos": {
+          "type": "integer",
+          "description": "Number of attempts made"
+        }
+      }
+    }
+  }
+}

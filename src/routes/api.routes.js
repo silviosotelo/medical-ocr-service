@@ -5,7 +5,6 @@ const visacionController = require('../controllers/visacion.controller');
 const batchController = require('../controllers/batch.controller');
 const preVisacionRoutes = require('./pre-visacion.routes');
 const trainingRoutes = require('./training.routes');
-const apexRoutes = require('./apex.routes');
 const fileValidatorMiddleware = require('../middlewares/file-validator.middleware');
 const rateLimiter = require('../middlewares/rate-limiter.middleware');
 
@@ -14,7 +13,6 @@ const rateLimiter = require('../middlewares/rate-limiter.middleware');
 // =====================================================================
 router.use('/visar', preVisacionRoutes);
 router.use('/training', trainingRoutes);
-router.use('/apex', apexRoutes);
 
 // =====================================================================
 // RUTAS LEGACY
@@ -55,9 +53,9 @@ router.get('/version', (req, res) => {
       'Fine-tuning support',
       'RAG with pgvector',
       'Auto-training',
-      'Pre-visación automática (NEW)',
-      'Matching de nomencladores (NEW)',
-      'Oracle APEX integration (NEW)'
+      'Pre-visación automática',
+      'Matching de nomencladores',
+      'API-First Architecture'
     ]
   });
 });

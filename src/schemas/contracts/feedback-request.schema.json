@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Feedback Request",
+  "description": "Schema for submitting feedback (approve/reject/correct) on a pre-visacion",
+  "type": "object",
+  "required": ["accion", "usuario"],
+  "properties": {
+    "accion": {
+      "type": "string",
+      "enum": ["APROBAR", "RECHAZAR", "CORREGIR"],
+      "description": "Action to take on the pre-visacion"
+    },
+    "usuario": {
+      "type": "string",
+      "description": "Username performing the action"
+    },
+    "motivo": {
+      "type": ["string", "null"],
+      "description": "Reason for rejection or correction"
+    },
+    "correcciones": {
+      "type": "array",
+      "description": "Required when accion is CORREGIR. List of corrections per item.",
+      "items": {
+        "type": "object",
+        "required": ["item"],
+        "properties": {
+          "item": {
+            "type": "integer",
+            "description": "Item number (1-based) in the pre-visacion detail"
+          },
+          "id_nomenclador_correcto": {
+            "type": ["integer", "null"],
+            "description": "Correct nomenclador ID to replace the AI suggestion"
+          },
+          "id_prestador_correcto": {
+            "type": ["integer", "null"],
+            "description": "Correct provider ID"
+          },
+          "cantidad_correcta": {
+            "type": ["number", "null"],
+            "description": "Corrected quantity"
+          },
+          "razon": {
+            "type": ["string", "null"],
+            "description": "Reason for this specific correction"
+          }
+        }
+      }
+    }
+  },
+  "if": {
+    "properties": { "accion": { "const": "CORREGIR" } }
+  },
+  "then": {
+    "required": ["accion", "usuario", "correcciones"],
+    "properties": {
+      "correcciones": { "minItems": 1 }
+    }
+  }
+}
