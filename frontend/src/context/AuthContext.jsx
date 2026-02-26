@@ -7,22 +7,22 @@ const ROLE_CONFIG = {
   super_admin: {
     label: 'Super Admin',
     level: 100,
-    nav: ['dashboard', 'tenants', 'users', 'api-keys', 'orders', 'usage', 'data', 'webhooks'],
+    nav: ['dashboard', 'tenants', 'users', 'api-keys', 'orders', 'usage', 'data', 'data-ingest', 'ordenes-processing', 'previsaciones', 'webhooks'],
   },
   admin: {
     label: 'Administrador',
     level: 80,
-    nav: ['dashboard', 'users', 'api-keys', 'orders', 'usage', 'data', 'webhooks'],
+    nav: ['dashboard', 'users', 'api-keys', 'orders', 'usage', 'data', 'data-ingest', 'ordenes-processing', 'previsaciones', 'webhooks'],
   },
   operator: {
     label: 'Operador',
     level: 50,
-    nav: ['dashboard', 'orders', 'data', 'usage'],
+    nav: ['dashboard', 'orders', 'data', 'data-ingest', 'ordenes-processing', 'previsaciones', 'usage'],
   },
   viewer: {
     label: 'Visor',
     level: 10,
-    nav: ['dashboard', 'orders'],
+    nav: ['dashboard', 'orders', 'previsaciones'],
   },
 };
 

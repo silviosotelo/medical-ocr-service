@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
+import {
+  Card, Title, Text, Badge, Button, TextInput, Select, SelectItem,
+  Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell,
+} from '@tremor/react';
 import { Plus, Users as UsersIcon, X } from 'lucide-react';
+
+const ROLE_COLORS = { super_admin: 'red', admin: 'blue', operator: 'green', viewer: 'gray' };
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
@@ -35,50 +41,48 @@ export default function UsersPage() {
     setSaving(false);
   }
 
-  const roles = { super_admin: 'bg-red-50 text-red-700', admin: 'bg-brand-50 text-brand-700', viewer: 'bg-gray-100 text-gray-700', operator: 'bg-green-50 text-green-700' };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Usuarios</h1>
-          <p className="text-gray-500 mt-1">Gestion de usuarios del tenant</p>
+          <Text>Gestion de usuarios del tenant</Text>
         </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Nuevo Usuario
-        </button>
+        <Button onClick={() => setShowForm(true)}>
+          <Plus className="w-4 h-4 mr-2" /> Nuevo Usuario
+        </Button>
       </div>
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <form onSubmit={handleSubmit} className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Nuevo Usuario</h2>
+              <Title>Nuevo Usuario</Title>
               <button type="button" onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field" required />
+              <Text className="mb-1">Nombre</Text>
+              <TextInput value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nombre completo" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input-field" required />
+              <Text className="mb-1">Email</Text>
+              <TextInput type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@ejemplo.com" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="input-field" required />
+              <Text className="mb-1">Password</Text>
+              <TextInput type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="********" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
-              <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="input-field">
-                <option value="viewer">Viewer</option>
-                <option value="operator">Operator</option>
-                <option value="admin">Admin</option>
-              </select>
+              <Text className="mb-1">Rol</Text>
+              <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+                <SelectItem value="viewer">Viewer</SelectItem>
+                <SelectItem value="operator">Operator</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </Select>
             </div>
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={() => setShowForm(false)} className="btn-secondary flex-1">Cancelar</button>
-              <button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? 'Guardando...' : 'Crear'}</button>
+              <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowForm(false)}>Cancelar</Button>
+              <Button type="submit" loading={saving} className="flex-1">Crear</Button>
             </div>
           </form>
         </div>
@@ -87,42 +91,35 @@ export default function UsersPage() {
       {loading ? (
         <div className="flex justify-center py-12"><div className="animate-spin h-8 w-8 border-4 border-brand-600 border-t-transparent rounded-full" /></div>
       ) : users.length === 0 ? (
-        <div className="card p-12 text-center">
+        <Card className="text-center py-12">
           <UsersIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">No hay usuarios</p>
-        </div>
+          <Text>No hay usuarios</Text>
+        </Card>
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr className="text-left text-gray-500">
-                <th className="px-5 py-3 font-medium">Nombre</th>
-                <th className="px-5 py-3 font-medium">Email</th>
-                <th className="px-5 py-3 font-medium">Rol</th>
-                <th className="px-5 py-3 font-medium">Estado</th>
-                <th className="px-5 py-3 font-medium">Ultimo Login</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
+        <Card>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableHeaderCell>Nombre</TableHeaderCell>
+                <TableHeaderCell>Email</TableHeaderCell>
+                <TableHeaderCell>Rol</TableHeaderCell>
+                <TableHeaderCell>Estado</TableHeaderCell>
+                <TableHeaderCell>Ultimo Login</TableHeaderCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {users.map((u) => (
-                <tr key={u.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3 font-medium text-gray-900">{u.name}</td>
-                  <td className="px-5 py-3 text-gray-600">{u.email}</td>
-                  <td className="px-5 py-3">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${roles[u.role] || roles.viewer}`}>{u.role}</span>
-                  </td>
-                  <td className="px-5 py-3">
-                    <span className={`flex items-center gap-1.5 text-xs ${u.status === 'active' ? 'text-green-600' : 'text-gray-400'}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${u.status === 'active' ? 'bg-green-500' : 'bg-gray-300'}`} />
-                      {u.status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 text-gray-500">{u.last_login ? new Date(u.last_login).toLocaleString() : '-'}</td>
-                </tr>
+                <TableRow key={u.id}>
+                  <TableCell><Text className="font-medium">{u.name}</Text></TableCell>
+                  <TableCell><Text>{u.email}</Text></TableCell>
+                  <TableCell><Badge color={ROLE_COLORS[u.role] || 'gray'}>{u.role}</Badge></TableCell>
+                  <TableCell><Badge color={u.status === 'active' ? 'green' : 'gray'}>{u.status}</Badge></TableCell>
+                  <TableCell><Text className="text-xs">{u.last_login ? new Date(u.last_login).toLocaleString() : '-'}</Text></TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </div>
   );

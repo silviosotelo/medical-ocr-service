@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Eye, EyeOff } from 'lucide-react';
+import { Card, Title, Text, TextInput, Button, Callout } from '@tremor/react';
+import { Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -34,53 +35,53 @@ export default function LoginPage() {
             <span className="text-white font-bold text-2xl">M</span>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Medical OCR</h1>
-          <p className="text-gray-500 mt-1">Plataforma SaaS de Visacion</p>
+          <Text className="mt-1">Plataforma SaaS de Visacion</Text>
         </div>
 
-        <form onSubmit={handleSubmit} className="card p-8 space-y-5">
-          {error && (
-            <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
+        <Card>
+          <form onSubmit={handleSubmit} className="space-y-5 p-2">
+            {error && (
+              <Callout title="Error" color="red" icon={AlertCircle}>
+                {error}
+              </Callout>
+            )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="input-field"
-              placeholder="tu@email.com"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
-            <div className="relative">
-              <input
-                type={showPw ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input-field pr-10"
-                placeholder="********"
+            <div>
+              <Text className="mb-1.5 font-medium">Email</Text>
+              <TextInput
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tu@email.com"
                 required
               />
-              <button
-                type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                onClick={() => setShowPw(!showPw)}
-              >
-                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
             </div>
-          </div>
 
-          <button type="submit" disabled={loading} className="btn-primary w-full">
-            {loading ? 'Ingresando...' : 'Ingresar'}
-          </button>
-        </form>
+            <div>
+              <Text className="mb-1.5 font-medium">Password</Text>
+              <div className="relative">
+                <TextInput
+                  type={showPw ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="********"
+                  required
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  onClick={() => setShowPw(!showPw)}
+                >
+                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <Button type="submit" loading={loading} className="w-full">
+              Ingresar
+            </Button>
+          </form>
+        </Card>
       </div>
     </div>
   );

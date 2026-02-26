@@ -1,35 +1,58 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Badge } from '@tremor/react';
 import {
   LayoutDashboard, Building2, Users, Key, FileText,
   BarChart3, Database, Webhook, LogOut, Menu, X, Shield,
+  Upload, Send, ClipboardCheck,
 } from 'lucide-react';
 
-const NAV_ITEMS = [
-  { key: 'dashboard', to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { key: 'tenants', to: '/tenants', icon: Building2, label: 'Tenants' },
-  { key: 'users', to: '/users', icon: Users, label: 'Usuarios' },
-  { key: 'api-keys', to: '/api-keys', icon: Key, label: 'API Keys' },
-  { key: 'orders', to: '/orders', icon: FileText, label: 'Ordenes' },
-  { key: 'usage', to: '/usage', icon: BarChart3, label: 'Uso' },
-  { key: 'data', to: '/data', icon: Database, label: 'Datos' },
-  { key: 'webhooks', to: '/webhooks', icon: Webhook, label: 'Webhooks' },
+const NAV_SECTIONS = [
+  {
+    title: null,
+    items: [
+      { key: 'dashboard', to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    ],
+  },
+  {
+    title: 'Procesamiento',
+    items: [
+      { key: 'data-ingest', to: '/data-ingest', icon: Upload, label: 'Ingesta de Datos' },
+      { key: 'ordenes-processing', to: '/ordenes-processing', icon: Send, label: 'Procesar Ordenes' },
+      { key: 'previsaciones', to: '/previsaciones', icon: ClipboardCheck, label: 'Pre-visaciones' },
+    ],
+  },
+  {
+    title: 'Operaciones',
+    items: [
+      { key: 'orders', to: '/orders', icon: FileText, label: 'Ordenes' },
+      { key: 'data', to: '/data', icon: Database, label: 'Datos' },
+      { key: 'usage', to: '/usage', icon: BarChart3, label: 'Uso' },
+      { key: 'webhooks', to: '/webhooks', icon: Webhook, label: 'Webhooks' },
+    ],
+  },
+  {
+    title: 'Administracion',
+    items: [
+      { key: 'tenants', to: '/tenants', icon: Building2, label: 'Tenants' },
+      { key: 'users', to: '/users', icon: Users, label: 'Usuarios' },
+      { key: 'api-keys', to: '/api-keys', icon: Key, label: 'API Keys' },
+    ],
+  },
 ];
 
 const ROLE_COLORS = {
-  super_admin: 'bg-red-100 text-red-700',
-  admin: 'bg-brand-100 text-brand-700',
-  operator: 'bg-amber-100 text-amber-700',
-  viewer: 'bg-gray-100 text-gray-600',
+  super_admin: 'red',
+  admin: 'blue',
+  operator: 'amber',
+  viewer: 'gray',
 };
 
 export default function Layout({ children }) {
   const { user, logout, canAccessNav, roleConfig } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  const visibleNav = NAV_ITEMS.filter((item) => canAccessNav(item.key));
 
   function handleLogout() {
     logout();
@@ -50,7 +73,10 @@ export default function Layout({ children }) {
           <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
             <span className="text-white font-bold text-sm">M</span>
           </div>
-          <span className="font-semibold text-gray-900">Medical OCR</span>
+          <div>
+            <span className="font-semibold text-gray-900 text-sm">Medical OCR</span>
+            <span className="block text-[10px] text-gray-400 -mt-0.5">SaaS Platform</span>
+          </div>
           <button
             className="ml-auto lg:hidden text-gray-500"
             onClick={() => setSidebarOpen(false)}
@@ -59,48 +85,63 @@ export default function Layout({ children }) {
           </button>
         </div>
 
-        <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
-          {visibleNav.map(({ key, to, icon: Icon, label }) => (
-            <NavLink
-              key={key}
-              to={to}
-              end={to === '/'}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150 ${
-                  isActive
-                    ? 'bg-brand-50 text-brand-700'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`
-              }
-            >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              {label}
-            </NavLink>
-          ))}
+        <nav className="p-3 flex-1 overflow-y-auto space-y-4">
+          {NAV_SECTIONS.map((section, idx) => {
+            const visibleItems = section.items.filter((item) => canAccessNav(item.key));
+            if (visibleItems.length === 0) return null;
+            return (
+              <div key={idx}>
+                {section.title && (
+                  <p className="px-3 mb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                    {section.title}
+                  </p>
+                )}
+                <div className="space-y-0.5">
+                  {visibleItems.map(({ key, to, icon: Icon, label }) => (
+                    <NavLink
+                      key={key}
+                      to={to}
+                      end={to === '/'}
+                      onClick={() => setSidebarOpen(false)}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${
+                          isActive
+                            ? 'bg-brand-50 text-brand-700'
+                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        }`
+                      }
+                    >
+                      <Icon className="w-4 h-4 flex-shrink-0" />
+                      {label}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </nav>
 
         <div className="p-4 border-t border-gray-200 flex-shrink-0 space-y-3">
           <div className="flex items-center gap-2 px-3">
             <Shield className="w-4 h-4 text-gray-400" />
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ROLE_COLORS[user?.role] || ROLE_COLORS.viewer}`}>
+            <Badge color={ROLE_COLORS[user?.role] || 'gray'} size="xs">
               {roleConfig.label}
-            </span>
+            </Badge>
           </div>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
           >
-            <LogOut className="w-5 h-5" />
+            <LogOut className="w-4 h-4" />
             Cerrar sesion
           </button>
         </div>
       </aside>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center px-6 gap-4 flex-shrink-0">
+        <header className="h-14 bg-white border-b border-gray-200 flex items-center px-6 gap-4 flex-shrink-0">
           <button className="lg:hidden text-gray-500" onClick={() => setSidebarOpen(true)}>
-            <Menu className="w-6 h-6" />
+            <Menu className="w-5 h-5" />
           </button>
           <div className="flex-1" />
           <div className="flex items-center gap-3">
