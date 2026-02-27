@@ -50,7 +50,12 @@ export default function DataPage() {
     setResult(null);
     try {
       const res = await api.post('/data/embeddings');
-      setResult({ success: true, message: `${res.data.generated} embeddings generados de ${res.data.total}` });
+      const d = res.data;
+      if (d.total === 0 || d.generated === 0 && !d.jobs) {
+        setResult({ success: true, message: 'No hay registros sin embeddings pendientes.' });
+      } else {
+        setResult({ success: true, message: `${d.total} registros encolados para embedding (${(d.jobs || []).length} job/s iniciados).` });
+      }
       loadStats();
     } catch (err) {
       setResult({ success: false, message: err.message });
@@ -98,10 +103,10 @@ export default function DataPage() {
 
       <Grid numItemsSm={2} numItemsLg={4} className="gap-4">
         {[
-          { label: 'Prestadores', value: stats?.prestadores },
-          { label: 'Nomencladores', value: stats?.nomencladores },
-          { label: 'Con Embeddings', value: stats?.nom_with_embeddings },
-          { label: 'Acuerdos', value: stats?.acuerdos },
+          { label: 'Prestadores', value: stats?.prestadores?.total },
+          { label: 'Nomencladores', value: stats?.nomencladores?.total },
+          { label: 'Con Embeddings', value: stats?.nomencladores?.con_embeddings },
+          { label: 'Acuerdos', value: stats?.acuerdos?.total },
         ].map(({ label, value }) => (
           <Card key={label}>
             <div className="flex items-center gap-3">

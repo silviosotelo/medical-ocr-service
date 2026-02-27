@@ -5,7 +5,7 @@ import { Badge } from '@tremor/react';
 import {
   LayoutDashboard, Building2, Users, Key, FileText,
   BarChart3, Database, Webhook, LogOut, Menu, X, Shield,
-  Upload, Send, ClipboardCheck,
+  Upload, Send, ClipboardCheck, AlertCircle,
 } from 'lucide-react';
 
 const NAV_SECTIONS = [
@@ -49,8 +49,42 @@ const ROLE_COLORS = {
   viewer: 'gray',
 };
 
+function TenantSelectorWidget() {
+  const { isSuperAdmin, selectedTenant, availableTenants, selectTenant, user } = useAuth();
+
+  if (isSuperAdmin) {
+    return (
+      <select
+        value={selectedTenant?.id || ''}
+        onChange={(e) => {
+          const tenant = availableTenants.find((t) => String(t.id) === e.target.value);
+          selectTenant(tenant || null);
+        }}
+        className="rounded-lg border border-gray-300 text-sm py-1.5 px-3 bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 text-gray-700"
+      >
+        <option value="">— Seleccionar Tenant —</option>
+        {availableTenants.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.name}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  const tenantName = selectedTenant?.name || user?.tenant_name || user?.tenant_id;
+  if (!tenantName) return null;
+
+  return (
+    <div className="flex items-center gap-1.5 text-sm text-gray-600">
+      <Building2 className="w-4 h-4 text-gray-400" />
+      <span>{tenantName}</span>
+    </div>
+  );
+}
+
 export default function Layout({ children }) {
-  const { user, logout, canAccessNav, roleConfig } = useAuth();
+  const { user, logout, canAccessNav, roleConfig, isSuperAdmin, selectedTenant } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -144,6 +178,7 @@ export default function Layout({ children }) {
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex-1" />
+          <TenantSelectorWidget />
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center">
               <span className="text-brand-700 font-medium text-sm">
@@ -157,7 +192,13 @@ export default function Layout({ children }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 bg-gray-50">
+        <main key={selectedTenant?.id || 'no-tenant'} className="flex-1 overflow-y-auto p-6 bg-gray-50">
+          {isSuperAdmin && !selectedTenant && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              Selecciona un tenant en la barra superior para operar sobre sus datos.
+            </div>
+          )}
           {children}
         </main>
       </div>

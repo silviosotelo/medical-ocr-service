@@ -30,6 +30,31 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedTenant, setSelectedTenant] = useState(() => {
+    const stored = localStorage.getItem('selectedTenant');
+    return stored ? JSON.parse(stored) : null;
+  });
+  const [availableTenants, setAvailableTenants] = useState([]);
+
+  function selectTenant(tenant) {
+    if (tenant) {
+      localStorage.setItem('selectedTenantId', tenant.id);
+      localStorage.setItem('selectedTenant', JSON.stringify(tenant));
+    } else {
+      localStorage.removeItem('selectedTenantId');
+      localStorage.removeItem('selectedTenant');
+    }
+    setSelectedTenant(tenant);
+  }
+
+  async function loadAvailableTenants() {
+    try {
+      const res = await api.get('/tenants?limit=100');
+      setAvailableTenants(res.data?.tenants || res.data || []);
+    } catch {
+      setAvailableTenants([]);
+    }
+  }
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
@@ -39,6 +64,9 @@ export function AuthProvider({ children }) {
         const u = JSON.parse(stored);
         setUser(u);
         loadPermissions();
+        if (u.role === 'super_admin') {
+          loadAvailableTenants();
+        }
       } catch {
         localStorage.removeItem('user');
       }
@@ -63,6 +91,20 @@ export function AuthProvider({ children }) {
     localStorage.setItem('user', JSON.stringify(u));
     setUser(u);
     await loadPermissions();
+
+    if (u.role === 'super_admin') {
+      // Load available tenants but don't auto-select
+      try {
+        const tenantsRes = await api.get('/tenants?limit=100');
+        setAvailableTenants(tenantsRes.data?.tenants || tenantsRes.data || []);
+      } catch {
+        setAvailableTenants([]);
+      }
+    } else {
+      // Auto-select tenant from JWT for non-super_admin roles
+      selectTenant({ id: u.tenant_id, name: u.tenant_name || u.tenant_id });
+    }
+
     return u;
   }
 
@@ -70,8 +112,12 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
+    localStorage.removeItem('selectedTenantId');
+    localStorage.removeItem('selectedTenant');
     setUser(null);
     setPermissions([]);
+    setSelectedTenant(null);
+    setAvailableTenants([]);
   }
 
   const hasPermission = useCallback(
@@ -88,12 +134,14 @@ export function AuthProvider({ children }) {
 
   const isSuperAdmin = user?.role === 'super_admin';
   const isAdmin = user?.role === 'admin' || isSuperAdmin;
+  const isReadyToOperate = !isSuperAdmin || selectedTenant !== null;
 
   return (
     <AuthContext.Provider value={{
       user, login, logout, loading,
       permissions, hasPermission, canAccessNav,
       roleConfig, isSuperAdmin, isAdmin,
+      selectedTenant, availableTenants, selectTenant, isReadyToOperate,
     }}>
       {children}
     </AuthContext.Provider>

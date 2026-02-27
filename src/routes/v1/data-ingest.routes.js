@@ -2,12 +2,27 @@ const express = require('express');
 const router = express.Router();
 const Joi = require('joi');
 const crypto = require('crypto');
+const path = require('path');
+const fs = require('fs');
 const rateLimit = require('express-rate-limit');
+const multer = require('multer');
+const ExcelJS = require('exceljs');
 const { query, transaction } = require('../../config/database.config');
 const { authMiddleware } = require('../../middlewares/auth.middleware');
 const { tenantMiddleware } = require('../../middlewares/tenant.middleware');
 const jobQueueService = require('../../services/job-queue.service');
 const logger = require('../../config/logger.config');
+
+// Multer config for Excel uploads
+const xlsxUpload = multer({
+  dest: process.env.TEMP_DIR || './temp',
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (['.xlsx', '.xls', '.csv'].includes(ext)) return cb(null, true);
+    cb(new Error('Solo se permiten archivos .xlsx, .xls o .csv'));
+  },
+});
 
 // Rate limit: 10 req/min for batch data endpoints
 const batchRateLimit = rateLimit({
@@ -402,6 +417,383 @@ router.get('/stats', async (req, res) => {
     });
   } catch (err) {
     logger.error('Error in GET /data/stats', { error: err.message });
+    res.status(500).json({ status: 'error', error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// =====================================================================
+// POST /v1/data/import?type=prestadores|nomencladores|acuerdos
+// Import from Excel/CSV file upload
+// =====================================================================
+
+// Column mappings: Excel header (lowercase, trimmed) → internal field
+const COLUMN_MAPS = {
+  prestadores: {
+    'id_externo': 'id_externo',
+    'codigo': 'id_externo',
+    'ruc': 'ruc',
+    'nombre_fantasia': 'nombre_fantasia',
+    'nombre': 'nombre_fantasia',
+    'razon_social': 'razon_social',
+    'raz_soc_nombre': 'razon_social',
+    'registro_profesional': 'registro_profesional',
+    'matricula': 'registro_profesional',
+    'tipo': 'tipo',
+    'ranking': 'ranking',
+    'estado': 'estado',
+  },
+  nomencladores: {
+    'id_externo': 'id_externo',
+    'codigo': 'id_externo',
+    'id_servicio': 'id_servicio',
+    'cod_servicio': 'id_servicio',
+    'especialidad': 'especialidad',
+    'descripcion': 'descripcion',
+    'descripcion_corta': 'descripcion',
+    'desc_nomenclador': 'desc_nomenclador',
+    'descripcion_larga': 'desc_nomenclador',
+    'grupo': 'grupo',
+    'subgrupo': 'subgrupo',
+    'sinonimos': 'sinonimos',
+    'palabras_clave': 'palabras_clave',
+    'estado': 'estado',
+  },
+  acuerdos: {
+    'id_prestador_externo': 'id_prestador_externo',
+    'prestador': 'id_prestador_externo',
+    'cod_prestador': 'id_prestador_externo',
+    'id_nomenclador_externo': 'id_nomenclador_externo',
+    'nomenclador': 'id_nomenclador_externo',
+    'cod_nomenclador': 'id_nomenclador_externo',
+    'plan_id': 'plan_id',
+    'plan': 'plan_id',
+    'precio': 'precio',
+    'precio_acordado': 'precio',
+    'precio_normal': 'precio_normal',
+    'precio_diferenciado': 'precio_diferenciado',
+    'precio_internado': 'precio_internado',
+    'vigente': 'vigente',
+    'fecha_vigencia': 'fecha_vigencia',
+    'vigencia_desde': 'fecha_vigencia',
+  },
+};
+
+async function parseExcelFile(filePath, originalName) {
+  const wb = new ExcelJS.Workbook();
+  const ext = path.extname(originalName || filePath).toLowerCase();
+  if (ext === '.csv') {
+    await wb.csv.readFile(filePath);
+  } else {
+    await wb.xlsx.readFile(filePath);
+  }
+  const ws = wb.worksheets[0];
+  if (!ws) throw new Error('El archivo no contiene hojas de datos');
+
+  // Read headers from first row
+  const headers = [];
+  ws.getRow(1).eachCell({ includeEmpty: false }, (cell, col) => {
+    headers[col - 1] = String(cell.value ?? '').trim().toLowerCase();
+  });
+
+  const rows = [];
+  ws.eachRow({ includeEmpty: false }, (row, rowNum) => {
+    if (rowNum === 1) return;
+    const obj = {};
+    row.eachCell({ includeEmpty: false }, (cell, col) => {
+      const header = headers[col - 1];
+      if (header) {
+        let val = cell.value;
+        // ExcelJS returns rich text as object
+        if (val && typeof val === 'object' && val.richText) {
+          val = val.richText.map((r) => r.text).join('');
+        }
+        obj[header] = val;
+      }
+    });
+    if (Object.keys(obj).length > 0) rows.push(obj);
+  });
+
+  return rows;
+}
+
+function mapRow(rawRow, colMap) {
+  const mapped = {};
+  for (const [rawKey, rawVal] of Object.entries(rawRow)) {
+    const key = String(rawKey).trim().toLowerCase();
+    const targetField = colMap[key];
+    if (targetField) {
+      mapped[targetField] = rawVal;
+    }
+  }
+  return mapped;
+}
+
+router.post('/import', xlsxUpload.single('file'), async (req, res) => {
+  const filePath = req.file?.path;
+  try {
+    const type = (req.query.type || req.body.type || '').toLowerCase();
+    if (!['prestadores', 'nomencladores', 'acuerdos'].includes(type)) {
+      return res.status(400).json({
+        status: 'error',
+        error: { code: 'INVALID_TYPE', message: 'type debe ser prestadores, nomencladores o acuerdos' },
+      });
+    }
+    if (!req.file) {
+      return res.status(400).json({
+        status: 'error',
+        error: { code: 'NO_FILE', message: 'Se requiere un archivo .xlsx, .xls o .csv' },
+      });
+    }
+
+    const tenantId = req.tenantId;
+    const colMap = COLUMN_MAPS[type];
+    const rawRows = await parseExcelFile(filePath, req.file.originalname);
+    const rows = rawRows.map((r) => mapRow(r, colMap));
+
+    if (rows.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        error: { code: 'EMPTY_FILE', message: 'El archivo no contiene datos' },
+      });
+    }
+
+    logger.info('Import file parsed', { type, rows: rows.length, tenantId });
+
+    // Reuse batch insert logic inline
+    const batchId = crypto.randomUUID();
+    let totalInsertados = 0;
+    let totalActualizados = 0;
+    const errores = [];
+
+    if (type === 'prestadores') {
+      const insertedIds = [];
+      await transaction(async (client) => {
+        for (let i = 0; i < rows.length; i++) {
+          const p = rows[i];
+          if (!p.id_externo || !p.nombre_fantasia) {
+            errores.push({ fila: i + 2, error: 'Faltan campos requeridos: id_externo, nombre_fantasia' });
+            continue;
+          }
+          const existing = await client.query(
+            `SELECT id_prestador FROM prestadores WHERE id_externo = $1 AND tenant_id = $2`,
+            [String(p.id_externo), tenantId]
+          );
+          if (existing.rows.length > 0) {
+            await client.query(
+              `UPDATE prestadores SET nombre_fantasia = COALESCE($3, nombre_fantasia),
+               ruc = COALESCE($4, ruc), raz_soc_nombre = COALESCE($5, raz_soc_nombre),
+               registro_profesional = COALESCE($6, registro_profesional),
+               tipo = COALESCE($7, tipo), ranking = COALESCE($8, ranking),
+               estado = COALESCE($9, estado)
+               WHERE id_externo = $1 AND tenant_id = $2`,
+              [String(p.id_externo), tenantId, p.nombre_fantasia || null, p.ruc || null,
+               p.razon_social || null, p.registro_profesional || null, p.tipo || null,
+               p.ranking ? Number(p.ranking) : null, p.estado || null]
+            );
+            insertedIds.push(existing.rows[0].id_prestador);
+            totalActualizados++;
+          } else {
+            const nextId = await client.query(`SELECT COALESCE(MAX(id_prestador), 0) + 1 as next_id FROM prestadores`);
+            const newId = nextId.rows[0].next_id;
+            await client.query(
+              `INSERT INTO prestadores (id_prestador, id_externo, nombre_fantasia, ruc, raz_soc_nombre, registro_profesional, tipo, ranking, estado, tenant_id)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+              [newId, String(p.id_externo), p.nombre_fantasia, p.ruc || null,
+               p.razon_social || null, p.registro_profesional || null, p.tipo || null,
+               p.ranking ? Number(p.ranking) : null, p.estado || 'ACTIVO', tenantId]
+            );
+            insertedIds.push(newId);
+            totalInsertados++;
+          }
+        }
+      });
+      if (insertedIds.length > 0) {
+        await jobQueueService.enqueue('embedding_prestadores', { ids: insertedIds }, { batch_id: batchId, tenant_id: tenantId });
+      }
+    } else if (type === 'nomencladores') {
+      const insertedIds = [];
+      await transaction(async (client) => {
+        for (let i = 0; i < rows.length; i++) {
+          const n = rows[i];
+          if (!n.id_externo || !n.descripcion) {
+            errores.push({ fila: i + 2, error: 'Faltan campos requeridos: id_externo, descripcion' });
+            continue;
+          }
+          const sinonimos = n.sinonimos
+            ? String(n.sinonimos).split(/[,;|]/).map((s) => s.trim()).filter(Boolean)
+            : [];
+          const palabrasClave = n.palabras_clave
+            ? String(n.palabras_clave).split(/[,;|]/).map((s) => s.trim()).filter(Boolean)
+            : [];
+          const existing = await client.query(
+            `SELECT id_nomenclador FROM nomencladores WHERE id_externo = $1 AND tenant_id = $2`,
+            [String(n.id_externo), tenantId]
+          );
+          if (existing.rows.length > 0) {
+            await client.query(
+              `UPDATE nomencladores SET descripcion = COALESCE($3, descripcion),
+               especialidad = COALESCE($4, especialidad), desc_nomenclador = COALESCE($5, desc_nomenclador),
+               grupo = COALESCE($6, grupo), subgrupo = COALESCE($7, subgrupo),
+               sinonimos = $8, palabras_clave = $9, estado = COALESCE($10, estado)
+               WHERE id_externo = $1 AND tenant_id = $2`,
+              [String(n.id_externo), tenantId, n.descripcion || null, n.especialidad || null,
+               n.desc_nomenclador || null, n.grupo || null, n.subgrupo || null,
+               sinonimos, palabrasClave, n.estado || null]
+            );
+            insertedIds.push(existing.rows[0].id_nomenclador);
+            totalActualizados++;
+          } else {
+            const nextId = await client.query(`SELECT COALESCE(MAX(id_nomenclador), 0) + 1 as next_id FROM nomencladores`);
+            const newId = nextId.rows[0].next_id;
+            await client.query(
+              `INSERT INTO nomencladores (id_nomenclador, id_externo, id_servicio, especialidad, descripcion, desc_nomenclador, grupo, subgrupo, sinonimos, palabras_clave, estado, tenant_id)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+              [newId, String(n.id_externo), n.id_servicio ? Number(n.id_servicio) : null,
+               n.especialidad || null, n.descripcion, n.desc_nomenclador || null,
+               n.grupo || null, n.subgrupo || null, sinonimos, palabrasClave,
+               n.estado || 'ACTIVO', tenantId]
+            );
+            insertedIds.push(newId);
+            totalInsertados++;
+          }
+        }
+      });
+      if (insertedIds.length > 0) {
+        await jobQueueService.enqueue('embedding_nomencladores', { ids: insertedIds }, { batch_id: batchId, tenant_id: tenantId });
+      }
+    } else if (type === 'acuerdos') {
+      await transaction(async (client) => {
+        for (let i = 0; i < rows.length; i++) {
+          const a = rows[i];
+          if (!a.id_prestador_externo || !a.id_nomenclador_externo) {
+            errores.push({ fila: i + 2, error: 'Faltan campos: id_prestador_externo, id_nomenclador_externo' });
+            continue;
+          }
+          const prestResult = await client.query(
+            `SELECT id_prestador FROM prestadores WHERE id_externo = $1 AND tenant_id = $2`,
+            [String(a.id_prestador_externo), tenantId]
+          );
+          const nomResult = await client.query(
+            `SELECT id_nomenclador FROM nomencladores WHERE id_externo = $1 AND tenant_id = $2`,
+            [String(a.id_nomenclador_externo), tenantId]
+          );
+          if (prestResult.rows.length === 0) {
+            errores.push({ fila: i + 2, error: `Prestador no encontrado: ${a.id_prestador_externo}` });
+            continue;
+          }
+          if (nomResult.rows.length === 0) {
+            errores.push({ fila: i + 2, error: `Nomenclador no encontrado: ${a.id_nomenclador_externo}` });
+            continue;
+          }
+          const prestId = prestResult.rows[0].id_prestador;
+          const nomId = nomResult.rows[0].id_nomenclador;
+          const planId = a.plan_id ? Number(a.plan_id) : null;
+          const existing = await client.query(
+            `SELECT id_acuerdo FROM acuerdos_prestador WHERE prest_id_prestador=$1 AND id_nomenclador=$2 AND plan_id_plan=$3 AND tenant_id=$4`,
+            [prestId, nomId, planId, tenantId]
+          );
+          if (existing.rows.length > 0) {
+            await client.query(
+              `UPDATE acuerdos_prestador SET precio=COALESCE($4,precio), precio_normal=COALESCE($5,precio_normal),
+               precio_diferenciado=COALESCE($6,precio_diferenciado), precio_internado=COALESCE($7,precio_internado),
+               vigente=COALESCE($8,vigente), fecha_vigencia=COALESCE($9::date,fecha_vigencia)
+               WHERE prest_id_prestador=$1 AND id_nomenclador=$2 AND plan_id_plan=$3 AND tenant_id=$10`,
+              [prestId, nomId, planId, a.precio ? Number(a.precio) : null, a.precio_normal ? Number(a.precio_normal) : null,
+               a.precio_diferenciado ? Number(a.precio_diferenciado) : null, a.precio_internado ? Number(a.precio_internado) : null,
+               a.vigente || null, a.fecha_vigencia || null, tenantId]
+            );
+            totalActualizados++;
+          } else {
+            await client.query(
+              `INSERT INTO acuerdos_prestador (prest_id_prestador, id_nomenclador, plan_id_plan, precio, precio_normal, precio_diferenciado, precio_internado, vigente, fecha_vigencia, tenant_id)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+              [prestId, nomId, planId, a.precio ? Number(a.precio) : null, a.precio_normal ? Number(a.precio_normal) : null,
+               a.precio_diferenciado ? Number(a.precio_diferenciado) : null, a.precio_internado ? Number(a.precio_internado) : null,
+               a.vigente || 'SI', a.fecha_vigencia || null, tenantId]
+            );
+            totalInsertados++;
+          }
+        }
+      });
+    }
+
+    res.json({
+      status: 'ok',
+      data: {
+        imported: totalInsertados + totalActualizados,
+        insertados: totalInsertados,
+        actualizados: totalActualizados,
+        errores,
+        batch_id: batchId,
+      },
+    });
+  } catch (err) {
+    logger.error('Error in POST /data/import', { error: err.message });
+    res.status(500).json({ status: 'error', error: { code: 'IMPORT_ERROR', message: err.message } });
+  } finally {
+    // Clean up uploaded temp file
+    if (filePath) fs.unlink(filePath, () => {});
+  }
+});
+
+// =====================================================================
+// POST /v1/data/embeddings
+// Enqueue embedding jobs for all records without embeddings
+// =====================================================================
+router.post('/embeddings', async (req, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const batchId = crypto.randomUUID();
+
+    const [prestResult, nomResult] = await Promise.all([
+      query(
+        `SELECT id_prestador FROM prestadores WHERE tenant_id = $1 AND nombre_embedding IS NULL`,
+        [tenantId]
+      ),
+      query(
+        `SELECT id_nomenclador FROM nomencladores WHERE tenant_id = $1 AND descripcion_embedding IS NULL`,
+        [tenantId]
+      ),
+    ]);
+
+    const prestIds = prestResult.rows.map((r) => r.id_prestador);
+    const nomIds = nomResult.rows.map((r) => r.id_nomenclador);
+    const jobs = [];
+
+    if (prestIds.length > 0) {
+      const job = await jobQueueService.enqueue('embedding_prestadores', { ids: prestIds }, {
+        batch_id: batchId,
+        tenant_id: tenantId,
+      });
+      jobs.push({ tipo: 'embedding_prestadores', job_id: job.job_id, count: prestIds.length });
+    }
+
+    if (nomIds.length > 0) {
+      const job = await jobQueueService.enqueue('embedding_nomencladores', { ids: nomIds }, {
+        batch_id: batchId,
+        tenant_id: tenantId,
+      });
+      jobs.push({ tipo: 'embedding_nomencladores', job_id: job.job_id, count: nomIds.length });
+    }
+
+    if (jobs.length === 0) {
+      return res.json({
+        status: 'ok',
+        data: { message: 'No hay registros sin embeddings', generated: 0, total: 0 },
+      });
+    }
+
+    res.status(202).json({
+      status: 'accepted',
+      data: {
+        batch_id: batchId,
+        jobs,
+        generated: 0,
+        total: prestIds.length + nomIds.length,
+      },
+    });
+  } catch (err) {
+    logger.error('Error in POST /data/embeddings', { error: err.message });
     res.status(500).json({ status: 'error', error: { code: 'INTERNAL_ERROR', message: err.message } });
   }
 });

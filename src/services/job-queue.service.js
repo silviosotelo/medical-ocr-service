@@ -116,11 +116,49 @@ class JobQueueService {
     return summary;
   }
 
-  start() {
+  async start() {
     if (this.started) return;
     this.started = true;
     logger.info('Job queue started', { concurrency: WORKER_CONCURRENCY });
+    await this._recoverPendingJobs();
     this._processNext();
+  }
+
+  async _recoverPendingJobs() {
+    try {
+      // Mark stale PROCESSING jobs back to QUEUED (from a previous crash/restart)
+      await query(
+        `UPDATE ingestion_jobs SET estado = 'QUEUED' WHERE estado = 'PROCESSING'`
+      );
+
+      // Re-load QUEUED jobs into memory
+      const result = await query(
+        `SELECT id, tipo, batch_id, id_externo, tenant_id, payload, intentos, max_intentos
+         FROM ingestion_jobs WHERE estado = 'QUEUED' ORDER BY created_at ASC`
+      );
+
+      let recovered = 0;
+      for (const row of result.rows) {
+        if (!this.queues[row.tipo]) this.queues[row.tipo] = [];
+        this.queues[row.tipo].push({
+          id: row.id,
+          tipo: row.tipo,
+          batch_id: row.batch_id,
+          id_externo: row.id_externo,
+          tenant_id: row.tenant_id,
+          payload: typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload,
+          intentos: row.intentos,
+          max_intentos: row.max_intentos,
+        });
+        recovered++;
+      }
+
+      if (recovered > 0) {
+        logger.info('Recovered pending jobs from DB', { count: recovered });
+      }
+    } catch (err) {
+      logger.warn('Could not recover pending jobs', { error: err.message });
+    }
   }
 
   stop() {

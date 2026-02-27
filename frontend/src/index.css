@@ -6,21 +6,16 @@ body {
   min-height: 100vh;
 }
 
-/* Fix Tremor/Headless UI Select dropdown z-index inside modals */
+/* Fix Tremor/Headless UI Select dropdown z-index inside modals.
+   z-index sólo aplica a elementos posicionados — se necesita position: relative
+   en el portal y apuntar a sus hijos para superar z-50 del modal overlay. */
 [data-headlessui-portal] {
-  z-index: 9999 !important;
-}
-
-/* Ensure Headless UI Listbox/Combobox options appear above modals */
-[data-headlessui-state] ul,
-[data-headlessui-state] [role="listbox"] {
-  z-index: 9999 !important;
-}
-
-/* Fix alert/toast notifications above modals */
-.tremor-Callout-root {
   position: relative;
-  z-index: 50;
+  z-index: 9999 !important;
+}
+
+[data-headlessui-portal] > * {
+  z-index: 9999 !important;
 }
 
 @layer components {

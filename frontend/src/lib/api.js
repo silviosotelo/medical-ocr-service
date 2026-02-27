@@ -11,6 +11,11 @@ async function request(path, options = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
 
+  const selectedTenantId = localStorage.getItem('selectedTenantId');
+  if (selectedTenantId) {
+    headers['X-Tenant-ID'] = selectedTenantId;
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers,
@@ -45,9 +50,15 @@ export const api = {
     formData.append('file', file);
     Object.entries(extraFields).forEach(([k, v]) => formData.append(k, v));
 
+    const uploadHeaders = { Authorization: `Bearer ${token}` };
+    const selectedTenantId = localStorage.getItem('selectedTenantId');
+    if (selectedTenantId) {
+      uploadHeaders['X-Tenant-ID'] = selectedTenantId;
+    }
+
     const res = await fetch(`${API_BASE}${path}`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: uploadHeaders,
       body: formData,
     });
 

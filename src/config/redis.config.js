@@ -10,11 +10,13 @@ function getRedis() {
 
   try {
     redis = new Redis(REDIS_URL, {
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: 0,
+      enableOfflineQueue: false,
       retryStrategy(times) {
-        if (times > 5) return null;
-        return Math.min(times * 200, 2000);
+        if (times > 3) return null;
+        return Math.min(times * 500, 2000);
       },
+      connectTimeout: 2000,
       lazyConnect: true,
     });
 

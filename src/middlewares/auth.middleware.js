@@ -35,6 +35,15 @@ async function authMiddleware(req, res, next) {
       req.tenantId = decoded.tenantId;
       req.userRole = decoded.role;
       req.authType = 'jwt';
+
+      // Si es super_admin y no tiene tenant en el JWT, aceptar X-Tenant-ID header
+      if (decoded.role === 'super_admin' && !decoded.tenantId) {
+        const headerTenantId = req.headers['x-tenant-id'];
+        if (headerTenantId) {
+          req.tenantId = headerTenantId;
+        }
+      }
+
       return next();
     } catch (err) {
       return res.status(401).json({ status: 'error', error: { code: 'INVALID_TOKEN', message: 'Invalid or expired token' } });

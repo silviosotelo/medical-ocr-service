@@ -2,18 +2,19 @@
   "info": {
     "name": "Medical OCR Service - API-First v6",
     "_postman_id": "medical-ocr-api-first-v6",
-    "description": "Coleccion completa de la API del Medical OCR Service con arquitectura API-First.\n\nFlujo recomendado:\n1. Login o usar API Key\n2. Cargar datos maestros (prestadores, nomencladores, acuerdos)\n3. Enviar ordenes medicas\n4. Recibir resultados via webhook\n5. Enviar feedback",
+    "description": "Coleccion completa de la API del Medical OCR Service con arquitectura API-First.\n\nFlujo recomendado (admin/operator):\n1. Login → token y tenant_id se capturan automáticamente\n2. Cargar datos maestros (prestadores, nomencladores, acuerdos)\n3. Enviar ordenes medicas\n4. Recibir resultados via webhook\n5. Enviar feedback\n\nFlujo super_admin:\n1. Login con superadmin@platform.com → token capturado\n2. GET /tenants → copiar el ID del tenant a operar\n3. Setear variable tenant_id con ese ID\n4. Todos los requests llevan X-Tenant-ID: {{tenant_id}}",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "base_url", "value": "http://localhost:13500" },
     { "key": "token", "value": "" },
     { "key": "refresh_token", "value": "" },
     { "key": "api_key", "value": "" },
     { "key": "tenant_id", "value": "" },
     { "key": "batch_id", "value": "" },
     { "key": "job_id", "value": "" },
-    { "key": "visacion_id", "value": "" }
+    { "key": "visacion_id", "value": "" },
+    { "key": "x_tenant_id", "value": "" }
   ],
   "item": [
     {
@@ -75,14 +76,12 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "  var json = pm.response.json();",
-                  "  if (json.data && json.data.token) {",
-                  "    pm.collectionVariables.set('token', json.data.token);",
-                  "  }",
-                  "  if (json.data && json.data.refreshToken) {",
-                  "    pm.collectionVariables.set('refresh_token', json.data.refreshToken);",
-                  "  }",
-                  "  if (json.data && json.data.user && json.data.user.tenant_id) {",
-                  "    pm.collectionVariables.set('tenant_id', json.data.user.tenant_id);",
+                  "  if (json.data) {",
+                  "    pm.collectionVariables.set('token', json.data.accessToken || '');",
+                  "    pm.collectionVariables.set('refresh_token', json.data.refreshToken || '');",
+                  "    if (json.data.user && json.data.user.tenant_id) {",
+                  "      pm.collectionVariables.set('tenant_id', json.data.user.tenant_id);",
+                  "    }",
                   "  }",
                   "}"
                 ]
@@ -110,8 +109,8 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "  var json = pm.response.json();",
-                  "  if (json.data && json.data.token) {",
-                  "    pm.collectionVariables.set('token', json.data.token);",
+                  "  if (json.data && json.data.accessToken) {",
+                  "    pm.collectionVariables.set('token', json.data.accessToken);",
                   "  }",
                   "}"
                 ]
@@ -177,7 +176,8 @@
             "url": "{{base_url}}/api/v1/data/prestadores/batch",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ],
             "body": {
               "mode": "raw",
@@ -205,7 +205,8 @@
             "url": "{{base_url}}/api/v1/data/nomencladores/batch",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ],
             "body": {
               "mode": "raw",
@@ -220,7 +221,8 @@
             "url": "{{base_url}}/api/v1/data/acuerdos/batch",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ],
             "body": {
               "mode": "raw",
@@ -234,7 +236,8 @@
             "method": "GET",
             "url": "{{base_url}}/api/v1/data/jobs/{{job_id}}/status",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         },
@@ -244,7 +247,8 @@
             "method": "GET",
             "url": "{{base_url}}/api/v1/data/stats",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         }
@@ -277,7 +281,8 @@
             "url": "{{base_url}}/api/v1/ordenes/batch",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ],
             "body": {
               "mode": "raw",
@@ -291,7 +296,8 @@
             "method": "GET",
             "url": "{{base_url}}/api/v1/ordenes/batch/{{batch_id}}/status",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         }
@@ -308,7 +314,8 @@
             "url": "{{base_url}}/api/v1/ordenes/{{visacion_id}}/feedback",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ],
             "body": {
               "mode": "raw",
@@ -323,7 +330,8 @@
             "url": "{{base_url}}/api/v1/ordenes/{{visacion_id}}/feedback",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ],
             "body": {
               "mode": "raw",
@@ -338,7 +346,8 @@
             "url": "{{base_url}}/api/v1/ordenes/{{visacion_id}}/feedback",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ],
             "body": {
               "mode": "raw",
@@ -358,7 +367,8 @@
             "method": "GET",
             "url": "{{base_url}}/api/v1/webhooks",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         },
@@ -369,7 +379,8 @@
             "url": "{{base_url}}/api/v1/webhooks",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ],
             "body": {
               "mode": "raw",
@@ -384,7 +395,8 @@
             "url": "{{base_url}}/api/v1/webhooks/1",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ],
             "body": {
               "mode": "raw",
@@ -398,7 +410,8 @@
             "method": "DELETE",
             "url": "{{base_url}}/api/v1/webhooks/1",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         }
@@ -500,7 +513,8 @@
             "method": "GET",
             "url": "{{base_url}}/api/v1/users",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         },
@@ -511,7 +525,8 @@
             "url": "{{base_url}}/api/v1/users",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ],
             "body": {
               "mode": "raw",
@@ -525,7 +540,8 @@
             "method": "GET",
             "url": "{{base_url}}/api/v1/users/1",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         },
@@ -535,7 +551,8 @@
             "method": "DELETE",
             "url": "{{base_url}}/api/v1/users/1",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         }
@@ -550,7 +567,8 @@
             "method": "GET",
             "url": "{{base_url}}/api/v1/api-keys",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         },
@@ -576,7 +594,8 @@
             "url": "{{base_url}}/api/v1/api-keys",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ],
             "body": {
               "mode": "raw",
@@ -590,7 +609,8 @@
             "method": "DELETE",
             "url": "{{base_url}}/api/v1/api-keys/1",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         }
@@ -605,7 +625,8 @@
             "method": "GET",
             "url": "{{base_url}}/api/v1/usage",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         },
@@ -615,7 +636,8 @@
             "method": "GET",
             "url": "{{base_url}}/api/v1/usage/summary",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         },
@@ -625,7 +647,8 @@
             "method": "GET",
             "url": "{{base_url}}/api/v1/usage/daily?days=7",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         },
@@ -635,7 +658,8 @@
             "method": "GET",
             "url": "{{base_url}}/api/v1/usage/quota",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         }
@@ -650,7 +674,8 @@
             "method": "GET",
             "url": "{{base_url}}/api/v1/orders",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         },
@@ -660,7 +685,8 @@
             "method": "GET",
             "url": "{{base_url}}/api/v1/orders/1",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{token}}" }
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         },
@@ -670,7 +696,83 @@
             "method": "GET",
             "url": "{{base_url}}/api/v1/orders/stats",
             "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Super Admin Flow (example)",
+      "description": "Flujo para super_admin: Login → listar tenants → setear tenant_id → operar sobre ese tenant via X-Tenant-ID.",
+      "item": [
+        {
+          "name": "1. Login Super Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  var json = pm.response.json();",
+                  "  if (json.data) {",
+                  "    pm.collectionVariables.set('token', json.data.accessToken || '');",
+                  "    pm.collectionVariables.set('refresh_token', json.data.refreshToken || '');",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/login",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"superadmin@platform.com\",\n  \"password\": \"SuperAdmin123!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "2. List Tenants (sin X-Tenant-ID)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  var json = pm.response.json();",
+                  "  var tenants = json.data && (json.data.tenants || json.data);",
+                  "  if (tenants && tenants.length > 0) {",
+                  "    pm.collectionVariables.set('tenant_id', tenants[0].id);",
+                  "    console.log('Tenants disponibles:', JSON.stringify(tenants.map(function(t){ return {id: t.id, name: t.name}; })));",
+                  "    console.log('tenant_id seteado al primero:', tenants[0].id);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/tenants?limit=100",
+            "header": [
               { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        },
+        {
+          "name": "3. Database Stats (con X-Tenant-ID)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/data/stats",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
             ]
           }
         }
