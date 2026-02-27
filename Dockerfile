@@ -25,14 +25,15 @@ RUN addgroup -g 1001 -S nodejs && \
 
 USER nodejs
 
-EXPOSE 3000
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
-
+# Default port (overridden by docker-compose env)
 ENV NODE_ENV=production \
-    PORT=3000 \
+    PORT=13500 \
     TEMP_DIR=/app/temp \
     LOG_DIR=/app/logs
+
+EXPOSE ${PORT}
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:${PORT}/health || exit 1
 
 CMD ["node", "server.js"]
