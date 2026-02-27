@@ -4,6 +4,7 @@ const Joi = require('joi');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { authMiddleware } = require('../../middlewares/auth.middleware');
+const { tenantMiddleware } = require('../../middlewares/tenant.middleware');
 const jobQueueService = require('../../services/job-queue.service');
 const logger = require('../../config/logger.config');
 
@@ -28,7 +29,7 @@ function apiKeyOrBearerAuth(req, res, next) {
   return authMiddleware(req, res, next);
 }
 
-router.use(apiKeyOrBearerAuth);
+router.use(apiKeyOrBearerAuth, tenantMiddleware);
 
 // =====================================================================
 // Validation schemas
@@ -110,7 +111,7 @@ router.post('/batch', batchRateLimit, async (req, res) => {
 // =====================================================================
 router.get('/batch/:batch_id/status', async (req, res) => {
   try {
-    const batchStatus = await jobQueueService.getBatchStatus(req.params.batch_id);
+    const batchStatus = await jobQueueService.getBatchStatus(req.params.batch_id, req.tenantId);
 
     if (!batchStatus || batchStatus.total === 0) {
       return res.status(404).json({

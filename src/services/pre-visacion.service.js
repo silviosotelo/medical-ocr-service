@@ -6,7 +6,7 @@ const logger = require('../config/logger.config');
 const DEFAULT_PRESTADOR_ID = parseInt(process.env.DEFAULT_PRESTADOR_ID || '0');
 
 class PreVisacionService {
-  async generarPreVisacion(ordenProcesadaId, resultadoIA) {
+  async generarPreVisacion(ordenProcesadaId, resultadoIA, tenantId = null) {
     if (!resultadoIA) throw new Error('El resultado de IA es nulo o indefinido');
 
     const datos = {
@@ -23,7 +23,7 @@ class PreVisacionService {
 
     return await transaction(async (client) => {
       try {
-        logger.info('Iniciando generación de pre-visación', { ordenProcesadaId });
+        logger.info('Iniciando generación de pre-visación', { ordenProcesadaId, tenantId });
 
         let prestadorEmisor = null;
         let prestadorConfianza = 0;
@@ -31,7 +31,8 @@ class PreVisacionService {
         if (datos.prestador_emisor?.nombre) {
           const matchesPrestador = await matchingService.buscarPrestador(
             datos.prestador_emisor.nombre,
-            datos.prestador_emisor.ruc || datos.prestador_emisor.matricula
+            datos.prestador_emisor.ruc || datos.prestador_emisor.matricula,
+            tenantId
           );
 
           if (matchesPrestador && matchesPrestador.length > 0) {
@@ -43,7 +44,7 @@ class PreVisacionService {
         let medicoIdPrestador = null;
         const matricula = datos.medico_solicitante?.matricula_nacional || datos.medico_solicitante?.matricula;
         if (matricula) {
-          const medico = await matchingService.buscarPrestadorPorMatricula(matricula);
+          const medico = await matchingService.buscarPrestadorPorMatricula(matricula, tenantId);
           if (medico) {
             medicoIdPrestador = medico.id_prestador;
           }
@@ -53,16 +54,14 @@ class PreVisacionService {
         const requiereRevision = confianzaGeneral < 0.85;
         const observacionesIA = this.generarObservacionesIA(datos, prestadorEmisor, medicoIdPrestador);
 
-        const preVisacionResult = await client.query(`
-          INSERT INTO visacion_previa (
-            orden_procesada_id, archivo_nombre, archivo_url, ci_paciente,
-            nombre_paciente, fecha_orden, prestador_id_sugerido, prestador_nombre_original,
-            prestador_confianza, medico_nombre, medico_matricula, medico_id_prestador,
-            diagnostico_texto, diagnostico_codigo_cie, observaciones_ia, alertas_ia,
-            confianza_general, resultado_ia_completo, requiere_revision
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-          RETURNING id_visacion_previa
-        `, [
+        const insertColumns = [
+          'orden_procesada_id', 'archivo_nombre', 'archivo_url', 'ci_paciente',
+          'nombre_paciente', 'fecha_orden', 'prestador_id_sugerido', 'prestador_nombre_original',
+          'prestador_confianza', 'medico_nombre', 'medico_matricula', 'medico_id_prestador',
+          'diagnostico_texto', 'diagnostico_codigo_cie', 'observaciones_ia', 'alertas_ia',
+          'confianza_general', 'resultado_ia_completo', 'requiere_revision'
+        ];
+        const insertValues = [
           ordenProcesadaId,
           datos.metadata?.archivo_original || 'desconocido',
           datos.metadata?.archivo_url,
@@ -82,7 +81,20 @@ class PreVisacionService {
           confianzaGeneral,
           JSON.stringify(datos),
           requiereRevision
-        ]);
+        ];
+
+        if (tenantId) {
+          insertColumns.push('tenant_id');
+          insertValues.push(tenantId);
+        }
+
+        const placeholders = insertValues.map((_, i) => `$${i + 1}`).join(', ');
+        const preVisacionResult = await client.query(
+          `INSERT INTO visacion_previa (${insertColumns.join(', ')})
+           VALUES (${placeholders})
+           RETURNING id_visacion_previa`,
+          insertValues
+        );
 
         const preVisacionId = preVisacionResult.rows[0].id_visacion_previa;
 
@@ -99,10 +111,11 @@ class PreVisacionService {
             matchingResult = await matchingService.procesarMatchingPractica(
               practica,
               prestadorIdParaMatching,
-              1
+              1,
+              tenantId
             );
           } else {
-            const matchesNomen = await matchingService.buscarNomencladores(practica.descripcion_original, 10);
+            const matchesNomen = await matchingService.buscarNomencladores(practica.descripcion_original, 10, tenantId);
             matchingResult = {
               descripcion_original: practica.descripcion_original,
               cantidad: practica.cantidad || 1,
@@ -132,7 +145,7 @@ class PreVisacionService {
           let prestadorEjecutorNombre = prestadorEmisor?.nombre_fantasia;
 
           if (practica.prestador_ejecutor && practica.prestador_ejecutor !== datos.prestador_emisor?.nombre) {
-            const matchPrestadorEj = await matchingService.buscarPrestador(practica.prestador_ejecutor);
+            const matchPrestadorEj = await matchingService.buscarPrestador(practica.prestador_ejecutor, null, tenantId);
             if (matchPrestadorEj && matchPrestadorEj.length > 0) {
               prestadorEjecutorId = matchPrestadorEj[0].id_prestador;
               prestadorEjecutorNombre = matchPrestadorEj[0].nombre_fantasia;
@@ -276,8 +289,15 @@ class PreVisacionService {
     return observaciones.join(' ');
   }
 
-  async obtenerPreVisacion(idPreVisacion) {
+  async obtenerPreVisacion(idPreVisacion, tenantId = null) {
     try {
+      const params = [idPreVisacion];
+      let tenantFilter = '';
+      if (tenantId) {
+        params.push(tenantId);
+        tenantFilter = `AND vp.tenant_id = $${params.length}`;
+      }
+
       const cabecera = await query(`
         SELECT
           vp.*,
@@ -285,8 +305,8 @@ class PreVisacionService {
           p.ruc as prestador_ruc
         FROM visacion_previa vp
         LEFT JOIN prestadores p ON p.id_prestador = vp.prestador_id_sugerido
-        WHERE vp.id_visacion_previa = $1
-      `, [idPreVisacion]);
+        WHERE vp.id_visacion_previa = $1 ${tenantFilter}
+      `, params);
 
       if (cabecera.rows.length === 0) {
         throw new Error(`Pre-visacion ${idPreVisacion} no encontrada`);
@@ -316,10 +336,15 @@ class PreVisacionService {
     }
   }
 
-  async listarPendientes(filtros = {}) {
+  async listarPendientes(filtros = {}, tenantId = null) {
     try {
       const conditions = ["vp.estado = 'PENDIENTE'"];
       const params = [];
+
+      if (tenantId) {
+        params.push(tenantId);
+        conditions.push(`vp.tenant_id = $${params.length}`);
+      }
 
       if (filtros.requiere_revision !== undefined) {
         params.push(filtros.requiere_revision);
@@ -375,17 +400,24 @@ class PreVisacionService {
     }
   }
 
-  async aprobarPreVisacion(idPreVisacion, usuario) {
+  async aprobarPreVisacion(idPreVisacion, usuario, tenantId = null) {
     try {
+      const params = [idPreVisacion, usuario];
+      let tenantFilter = '';
+      if (tenantId) {
+        params.push(tenantId);
+        tenantFilter = `AND tenant_id = $${params.length}`;
+      }
+
       const result = await query(`
         UPDATE visacion_previa
         SET estado = 'APROBADA',
             aprobada_por = $2,
             aprobada_en = CURRENT_TIMESTAMP
         WHERE id_visacion_previa = $1
-        AND estado = 'PENDIENTE'
+        AND estado = 'PENDIENTE' ${tenantFilter}
         RETURNING id_visacion_previa
-      `, [idPreVisacion, usuario]);
+      `, params);
 
       if (result.rowCount === 0) {
         throw new Error(`Pre-visacion ${idPreVisacion} no encontrada o ya procesada`);
@@ -400,8 +432,15 @@ class PreVisacionService {
     }
   }
 
-  async rechazarPreVisacion(idPreVisacion, usuario, motivo) {
+  async rechazarPreVisacion(idPreVisacion, usuario, motivo, tenantId = null) {
     try {
+      const params = [idPreVisacion, usuario, motivo];
+      let tenantFilter = '';
+      if (tenantId) {
+        params.push(tenantId);
+        tenantFilter = `AND tenant_id = $${params.length}`;
+      }
+
       const result = await query(`
         UPDATE visacion_previa
         SET estado = 'RECHAZADA',
@@ -409,9 +448,9 @@ class PreVisacionService {
             rechazada_en = CURRENT_TIMESTAMP,
             motivo_rechazo = $3
         WHERE id_visacion_previa = $1
-        AND estado = 'PENDIENTE'
+        AND estado = 'PENDIENTE' ${tenantFilter}
         RETURNING id_visacion_previa
-      `, [idPreVisacion, usuario, motivo]);
+      `, params);
 
       if (result.rowCount === 0) {
         throw new Error(`Pre-visacion ${idPreVisacion} no encontrada o ya procesada`);
@@ -426,7 +465,7 @@ class PreVisacionService {
     }
   }
 
-  async corregirNomenclador(idDetPrevia, idNomencladorCorrecto, usuario, razon) {
+  async corregirNomenclador(idDetPrevia, idNomencladorCorrecto, usuario, razon, tenantId = null) {
     try {
       await transaction(async (client) => {
         await client.query(`
@@ -452,21 +491,32 @@ class PreVisacionService {
 
         const det = detResult.rows[0];
 
-        await client.query(`
-          INSERT INTO feedback_matching (
-            visacion_previa_id, det_previa_id, tipo,
-            descripcion_original, id_sugerido_ia, id_correcto,
-            razon, usuario
-          ) VALUES ($1, $2, 'nomenclador_corregido', $3, $4, $5, $6, $7)
-        `, [
+        const fbColumns = [
+          'visacion_previa_id', 'det_previa_id', 'tipo',
+          'descripcion_original', 'id_sugerido_ia', 'id_correcto',
+          'razon', 'usuario'
+        ];
+        const fbValues = [
           det.visacion_previa_id,
           idDetPrevia,
+          'nomenclador_corregido',
           det.descripcion_original,
           det.nomenclador_id_sugerido,
           idNomencladorCorrecto,
           razon,
           usuario
-        ]);
+        ];
+
+        if (tenantId) {
+          fbColumns.push('tenant_id');
+          fbValues.push(tenantId);
+        }
+
+        const fbPlaceholders = fbValues.map((_, i) => `$${i + 1}`).join(', ');
+        await client.query(
+          `INSERT INTO feedback_matching (${fbColumns.join(', ')}) VALUES (${fbPlaceholders})`,
+          fbValues
+        );
 
         logger.info('Nomenclador corregido', { idDetPrevia, idNomencladorCorrecto, usuario });
       });
@@ -479,8 +529,15 @@ class PreVisacionService {
     }
   }
 
-  async obtenerEstadisticas() {
+  async obtenerEstadisticas(tenantId = null) {
     try {
+      const params = [];
+      let whereClause = '';
+      if (tenantId) {
+        params.push(tenantId);
+        whereClause = `WHERE tenant_id = $${params.length}`;
+      }
+
       const result = await query(`
         SELECT
           COUNT(*) as total_previsaciones,
@@ -489,8 +546,15 @@ class PreVisacionService {
           COUNT(*) FILTER (WHERE estado = 'RECHAZADA') as rechazadas,
           AVG(confianza_general)::DECIMAL(3,2) as confianza_promedio,
           COUNT(*) FILTER (WHERE requiere_revision) as requieren_revision
-        FROM visacion_previa
-      `);
+        FROM visacion_previa ${whereClause}
+      `, params);
+
+      const detParams = [];
+      let detWhereClause = '';
+      if (tenantId) {
+        detParams.push(tenantId);
+        detWhereClause = `WHERE visacion_previa_id IN (SELECT id_visacion_previa FROM visacion_previa WHERE tenant_id = $1)`;
+      }
 
       const detResult = await query(`
         SELECT
@@ -498,8 +562,8 @@ class PreVisacionService {
           AVG(nomenclador_confianza)::DECIMAL(3,2) as confianza_items_promedio,
           SUM(CASE WHEN tiene_acuerdo THEN 1 ELSE 0 END) as items_con_acuerdo,
           COUNT(*) FILTER (WHERE estado = 'CORREGIDO') as items_corregidos
-        FROM det_visacion_previa
-      `);
+        FROM det_visacion_previa ${detWhereClause}
+      `, detParams);
 
       return {
         ...result.rows[0],
