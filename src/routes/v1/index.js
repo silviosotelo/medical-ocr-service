@@ -11,9 +11,11 @@ const webhookRoutes = require('./webhook.routes');
 const ordersRoutes = require('./orders.routes');
 const ordenesBatchRoutes = require('./ordenes-batch.routes');
 const feedbackRoutes = require('./feedback.routes');
+const plansRoutes = require('./plans.routes');
 
 router.use('/auth', authRoutes);
 router.use('/tenants', tenantRoutes);
+router.use('/plans', plansRoutes);
 router.use('/users', userRoutes);
 router.use('/api-keys', apikeyRoutes);
 router.use('/usage', usageRoutes);

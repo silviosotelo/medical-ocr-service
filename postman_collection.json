@@ -405,8 +405,34 @@
       ]
     },
     {
+      "name": "Plans",
+      "description": "Planes SaaS disponibles con sus limites.",
+      "item": [
+        {
+          "name": "List Plans",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/plans",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Get Plan Details",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/plans/professional",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "Tenants",
-      "description": "Gestion de tenants (requiere super_admin).",
+      "description": "Gestion de tenants (requiere super_admin). Todos los datos se filtran por tenant_id del JWT.",
       "item": [
         {
           "name": "List Tenants",
@@ -429,7 +455,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Hospital Central\",\n  \"slug\": \"hospital-central\",\n  \"plan\": \"professional\",\n  \"settings\": {\n    \"max_users\": 50,\n    \"max_api_keys\": 10\n  }\n}"
+              "raw": "{\n  \"name\": \"Hospital Central\",\n  \"slug\": \"hospital-central\",\n  \"plan\": \"professional\",\n  \"settings\": {\n    \"max_orders_month\": 5000,\n    \"max_api_keys\": 20,\n    \"max_users\": 50,\n    \"max_webhooks\": 10,\n    \"max_prestadores\": 10000,\n    \"max_nomencladores\": 20000\n  }\n}"
             }
           }
         },
@@ -438,6 +464,26 @@
           "request": {
             "method": "GET",
             "url": "{{base_url}}/api/v1/tenants/{{tenant_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Tenant Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/tenants/stats",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Tenant Dashboard",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/tenants/dashboard",
             "header": [
               { "key": "Authorization", "value": "Bearer {{token}}" }
             ]
