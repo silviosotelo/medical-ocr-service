@@ -80,12 +80,10 @@ const logger = winston.createLogger({
   ]
 });
 
-// En desarrollo, también loggear a consola
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: consoleFormat
-  }));
-}
+// Loggear a consola siempre (necesario para Docker logs)
+logger.add(new winston.transports.Console({
+  format: process.env.NODE_ENV === 'production' ? customFormat : consoleFormat
+}));
 
 // Método especial para auditoría
 logger.audit = (message, meta = {}) => {
