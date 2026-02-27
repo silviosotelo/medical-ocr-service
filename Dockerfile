@@ -1,3 +1,15 @@
+# Stage 1: Build frontend
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /app/frontend
+
+COPY frontend/package*.json ./
+RUN npm install
+
+COPY frontend/ ./
+RUN npm run build
+
+# Stage 2: Production image
 FROM node:20-alpine
 
 # System dependencies for PDF processing
@@ -14,6 +26,9 @@ RUN npm install --production && npm cache clean --force
 
 # Copy source code
 COPY . .
+
+# Copy frontend build from builder stage
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # Create required directories
 RUN mkdir -p temp logs

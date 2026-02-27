@@ -10,7 +10,8 @@ coverage/
 .nyc_output/
 tests/
 data/
-frontend/
+frontend/node_modules
+frontend/dist
 *.md
 !README.md
 !README_API_CONTRACT.md
