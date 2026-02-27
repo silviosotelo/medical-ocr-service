@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { query, transaction } = require('../../config/database.config');
 const { authMiddleware } = require('../../middlewares/auth.middleware');
+const { tenantMiddleware } = require('../../middlewares/tenant.middleware');
 const jobQueueService = require('../../services/job-queue.service');
 const logger = require('../../config/logger.config');
 
@@ -29,7 +30,7 @@ function apiKeyOrBearerAuth(req, res, next) {
   return authMiddleware(req, res, next);
 }
 
-router.use(apiKeyOrBearerAuth);
+router.use(apiKeyOrBearerAuth, tenantMiddleware);
 
 // =====================================================================
 // Validation schemas
@@ -100,6 +101,7 @@ router.post('/prestadores/batch', batchRateLimit, async (req, res) => {
     }
 
     const batchId = crypto.randomUUID();
+    const tenantId = req.tenantId;
     const prestadores = value.prestadores;
     let totalInsertados = 0;
     let totalActualizados = 0;
@@ -108,8 +110,8 @@ router.post('/prestadores/batch', batchRateLimit, async (req, res) => {
     await transaction(async (client) => {
       for (const p of prestadores) {
         const existing = await client.query(
-          `SELECT id_prestador FROM prestadores WHERE id_externo = $1`,
-          [p.id_externo]
+          `SELECT id_prestador FROM prestadores WHERE id_externo = $1 AND tenant_id = $2`,
+          [p.id_externo, tenantId]
         );
 
         if (existing.rows.length > 0) {
@@ -122,8 +124,8 @@ router.post('/prestadores/batch', batchRateLimit, async (req, res) => {
                tipo = COALESCE($6, tipo),
                ranking = COALESCE($7, ranking),
                estado = COALESCE($8, estado)
-             WHERE id_externo = $1`,
-            [p.id_externo, p.ruc, p.nombre_fantasia, p.razon_social, p.registro_profesional, p.tipo, p.ranking, p.estado]
+             WHERE id_externo = $1 AND tenant_id = $9`,
+            [p.id_externo, p.ruc, p.nombre_fantasia, p.razon_social, p.registro_profesional, p.tipo, p.ranking, p.estado, tenantId]
           );
           insertedIds.push(existing.rows[0].id_prestador);
           totalActualizados++;
@@ -132,9 +134,9 @@ router.post('/prestadores/batch', batchRateLimit, async (req, res) => {
           const newId = nextId.rows[0].next_id;
 
           await client.query(
-            `INSERT INTO prestadores (id_prestador, id_externo, ruc, nombre_fantasia, raz_soc_nombre, registro_profesional, tipo, ranking, estado)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-            [newId, p.id_externo, p.ruc, p.nombre_fantasia, p.razon_social, p.registro_profesional, p.tipo, p.ranking, p.estado]
+            `INSERT INTO prestadores (id_prestador, id_externo, ruc, nombre_fantasia, raz_soc_nombre, registro_profesional, tipo, ranking, estado, tenant_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [newId, p.id_externo, p.ruc, p.nombre_fantasia, p.razon_social, p.registro_profesional, p.tipo, p.ranking, p.estado, tenantId]
           );
           insertedIds.push(newId);
           totalInsertados++;
@@ -145,7 +147,7 @@ router.post('/prestadores/batch', batchRateLimit, async (req, res) => {
     // Enqueue embedding job
     const jobResult = await jobQueueService.enqueue('embedding_prestadores', { ids: insertedIds }, {
       batch_id: batchId,
-      tenant_id: req.tenantId,
+      tenant_id: tenantId,
     });
 
     const estimadoSegundos = Math.ceil(insertedIds.length / 100) * 2;
@@ -180,6 +182,7 @@ router.post('/nomencladores/batch', batchRateLimit, async (req, res) => {
     }
 
     const batchId = crypto.randomUUID();
+    const tenantId = req.tenantId;
     const nomencladores = value.nomencladores;
     let totalInsertados = 0;
     let totalActualizados = 0;
@@ -188,8 +191,8 @@ router.post('/nomencladores/batch', batchRateLimit, async (req, res) => {
     await transaction(async (client) => {
       for (const n of nomencladores) {
         const existing = await client.query(
-          `SELECT id_nomenclador FROM nomencladores WHERE id_externo = $1`,
-          [n.id_externo]
+          `SELECT id_nomenclador FROM nomencladores WHERE id_externo = $1 AND tenant_id = $2`,
+          [n.id_externo, tenantId]
         );
 
         if (existing.rows.length > 0) {
@@ -204,8 +207,8 @@ router.post('/nomencladores/batch', batchRateLimit, async (req, res) => {
                sinonimos = COALESCE($8, sinonimos),
                palabras_clave = COALESCE($9, palabras_clave),
                estado = COALESCE($10, estado)
-             WHERE id_externo = $1`,
-            [n.id_externo, n.id_servicio, n.especialidad, n.descripcion, n.desc_nomenclador, n.grupo, n.subgrupo, n.sinonimos, n.palabras_clave, n.estado]
+             WHERE id_externo = $1 AND tenant_id = $11`,
+            [n.id_externo, n.id_servicio, n.especialidad, n.descripcion, n.desc_nomenclador, n.grupo, n.subgrupo, n.sinonimos, n.palabras_clave, n.estado, tenantId]
           );
           insertedIds.push(existing.rows[0].id_nomenclador);
           totalActualizados++;
@@ -214,9 +217,9 @@ router.post('/nomencladores/batch', batchRateLimit, async (req, res) => {
           const newId = nextId.rows[0].next_id;
 
           await client.query(
-            `INSERT INTO nomencladores (id_nomenclador, id_externo, id_servicio, especialidad, descripcion, desc_nomenclador, grupo, subgrupo, sinonimos, palabras_clave, estado)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-            [newId, n.id_externo, n.id_servicio, n.especialidad, n.descripcion, n.desc_nomenclador, n.grupo, n.subgrupo, n.sinonimos, n.palabras_clave, n.estado]
+            `INSERT INTO nomencladores (id_nomenclador, id_externo, id_servicio, especialidad, descripcion, desc_nomenclador, grupo, subgrupo, sinonimos, palabras_clave, estado, tenant_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+            [newId, n.id_externo, n.id_servicio, n.especialidad, n.descripcion, n.desc_nomenclador, n.grupo, n.subgrupo, n.sinonimos, n.palabras_clave, n.estado, tenantId]
           );
           insertedIds.push(newId);
           totalInsertados++;
@@ -226,7 +229,7 @@ router.post('/nomencladores/batch', batchRateLimit, async (req, res) => {
 
     const jobResult = await jobQueueService.enqueue('embedding_nomencladores', { ids: insertedIds }, {
       batch_id: batchId,
-      tenant_id: req.tenantId,
+      tenant_id: tenantId,
     });
 
     const estimadoSegundos = Math.ceil(insertedIds.length / 100) * 3;
@@ -260,6 +263,7 @@ router.post('/acuerdos/batch', batchRateLimit, async (req, res) => {
       });
     }
 
+    const tenantId = req.tenantId;
     const acuerdos = value.acuerdos;
     let totalInsertados = 0;
     let totalActualizados = 0;
@@ -269,14 +273,14 @@ router.post('/acuerdos/batch', batchRateLimit, async (req, res) => {
       for (let i = 0; i < acuerdos.length; i++) {
         const a = acuerdos[i];
 
-        // Resolve external IDs to internal IDs
+        // Resolve external IDs to internal IDs - scoped by tenant
         const prestadorResult = await client.query(
-          `SELECT id_prestador FROM prestadores WHERE id_externo = $1`,
-          [a.id_prestador_externo]
+          `SELECT id_prestador FROM prestadores WHERE id_externo = $1 AND tenant_id = $2`,
+          [a.id_prestador_externo, tenantId]
         );
         const nomencladorResult = await client.query(
-          `SELECT id_nomenclador FROM nomencladores WHERE id_externo = $1`,
-          [a.id_nomenclador_externo]
+          `SELECT id_nomenclador FROM nomencladores WHERE id_externo = $1 AND tenant_id = $2`,
+          [a.id_nomenclador_externo, tenantId]
         );
 
         if (prestadorResult.rows.length === 0) {
@@ -293,8 +297,8 @@ router.post('/acuerdos/batch', batchRateLimit, async (req, res) => {
 
         const existing = await client.query(
           `SELECT id_acuerdo FROM acuerdos_prestador
-           WHERE prest_id_prestador = $1 AND id_nomenclador = $2 AND plan_id_plan = $3`,
-          [prestadorId, nomencladorId, a.plan_id]
+           WHERE prest_id_prestador = $1 AND id_nomenclador = $2 AND plan_id_plan = $3 AND tenant_id = $4`,
+          [prestadorId, nomencladorId, a.plan_id, tenantId]
         );
 
         if (existing.rows.length > 0) {
@@ -306,15 +310,15 @@ router.post('/acuerdos/batch', batchRateLimit, async (req, res) => {
                precio_internado = COALESCE($7, precio_internado),
                vigente = COALESCE($8, vigente),
                fecha_vigencia = COALESCE($9::date, fecha_vigencia)
-             WHERE prest_id_prestador = $1 AND id_nomenclador = $2 AND plan_id_plan = $3`,
-            [prestadorId, nomencladorId, a.plan_id, a.precio, a.precio_normal, a.precio_diferenciado, a.precio_internado, a.vigente, a.fecha_vigencia || null]
+             WHERE prest_id_prestador = $1 AND id_nomenclador = $2 AND plan_id_plan = $3 AND tenant_id = $10`,
+            [prestadorId, nomencladorId, a.plan_id, a.precio, a.precio_normal, a.precio_diferenciado, a.precio_internado, a.vigente, a.fecha_vigencia || null, tenantId]
           );
           totalActualizados++;
         } else {
           await client.query(
-            `INSERT INTO acuerdos_prestador (prest_id_prestador, id_nomenclador, plan_id_plan, precio, precio_normal, precio_diferenciado, precio_internado, vigente, fecha_vigencia)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-            [prestadorId, nomencladorId, a.plan_id, a.precio, a.precio_normal, a.precio_diferenciado, a.precio_internado, a.vigente, a.fecha_vigencia || null]
+            `INSERT INTO acuerdos_prestador (prest_id_prestador, id_nomenclador, plan_id_plan, precio, precio_normal, precio_diferenciado, precio_internado, vigente, fecha_vigencia, tenant_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [prestadorId, nomencladorId, a.plan_id, a.precio, a.precio_normal, a.precio_diferenciado, a.precio_internado, a.vigente, a.fecha_vigencia || null, tenantId]
           );
           totalInsertados++;
         }
@@ -345,6 +349,11 @@ router.get('/jobs/:job_id/status', async (req, res) => {
       return res.status(404).json({ status: 'error', error: { code: 'NOT_FOUND', message: 'Job not found' } });
     }
 
+    // Verify job belongs to this tenant
+    if (job.tenant_id && job.tenant_id !== req.tenantId) {
+      return res.status(404).json({ status: 'error', error: { code: 'NOT_FOUND', message: 'Job not found' } });
+    }
+
     res.json({
       status: 'ok',
       data: {
@@ -370,16 +379,17 @@ router.get('/jobs/:job_id/status', async (req, res) => {
 // =====================================================================
 router.get('/stats', async (req, res) => {
   try {
+    const tenantId = req.tenantId;
     const [prestadoresResult, nomencladoresResult, acuerdosResult] = await Promise.all([
       query(`SELECT
         COUNT(*)::int as total,
         COUNT(*) FILTER (WHERE nombre_embedding IS NOT NULL)::int as con_embeddings
-        FROM prestadores`),
+        FROM prestadores WHERE tenant_id = $1`, [tenantId]),
       query(`SELECT
         COUNT(*)::int as total,
         COUNT(*) FILTER (WHERE descripcion_embedding IS NOT NULL)::int as con_embeddings
-        FROM nomencladores`),
-      query(`SELECT COUNT(*)::int as total FROM acuerdos_prestador`),
+        FROM nomencladores WHERE tenant_id = $1`, [tenantId]),
+      query(`SELECT COUNT(*)::int as total FROM acuerdos_prestador WHERE tenant_id = $1`, [tenantId]),
     ]);
 
     res.json({

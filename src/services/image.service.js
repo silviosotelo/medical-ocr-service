@@ -179,6 +179,67 @@ class ImageService {
   }
 
   /**
+   * Procesa un buffer de imagen: compresión opcional y conversión a base64
+   * @param {Buffer} imageBuffer - Buffer de la imagen
+   * @returns {Promise<Object>} - { base64, mimeType }
+   */
+  async processImage(imageBuffer) {
+    try {
+      const metadata = await sharp(imageBuffer).metadata();
+
+      // Validar dimensiones mínimas
+      if (metadata.width < IMAGE_PROCESSING.MIN_WIDTH ||
+          metadata.height < IMAGE_PROCESSING.MIN_HEIGHT) {
+        throw new Error(
+          `Imagen muy pequeña: ${metadata.width}x${metadata.height}px ` +
+          `(mínimo ${IMAGE_PROCESSING.MIN_WIDTH}x${IMAGE_PROCESSING.MIN_HEIGHT}px)`
+        );
+      }
+
+      let outputBuffer = imageBuffer;
+      let mimeType = `image/${metadata.format === 'jpg' ? 'jpeg' : metadata.format}`;
+
+      // Comprimir si excede el umbral
+      if (imageBuffer.length > IMAGE_PROCESSING.COMPRESSION_THRESHOLD_BYTES) {
+        logger.info('Compressing image buffer', {
+          originalSizeKB: Math.round(imageBuffer.length / 1024)
+        });
+
+        outputBuffer = await sharp(imageBuffer)
+          .jpeg({
+            quality: IMAGE_PROCESSING.COMPRESSION_QUALITY,
+            progressive: true,
+            mozjpeg: true
+          })
+          .resize(IMAGE_PROCESSING.MAX_WIDTH, IMAGE_PROCESSING.MAX_HEIGHT, {
+            fit: 'inside',
+            withoutEnlargement: true
+          })
+          .toBuffer();
+
+        mimeType = 'image/jpeg';
+
+        logger.info('Image buffer compressed', {
+          originalKB: Math.round(imageBuffer.length / 1024),
+          compressedKB: Math.round(outputBuffer.length / 1024)
+        });
+      }
+
+      return {
+        base64: outputBuffer.toString('base64'),
+        mimeType
+      };
+    } catch (error) {
+      logger.error('processImage failed', { error: error.message });
+      // Fallback: devolver el buffer original como base64
+      return {
+        base64: imageBuffer.toString('base64'),
+        mimeType: 'image/jpeg'
+      };
+    }
+  }
+
+  /**
    * Convierte cualquier formato de imagen a JPEG
    * @param {string} imagePath - Ruta de la imagen
    * @param {string} outputPath - Ruta de salida

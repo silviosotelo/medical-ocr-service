@@ -6,6 +6,23 @@ body {
   min-height: 100vh;
 }
 
+/* Fix Tremor/Headless UI Select dropdown z-index inside modals */
+[data-headlessui-portal] {
+  z-index: 9999 !important;
+}
+
+/* Ensure Headless UI Listbox/Combobox options appear above modals */
+[data-headlessui-state] ul,
+[data-headlessui-state] [role="listbox"] {
+  z-index: 9999 !important;
+}
+
+/* Fix alert/toast notifications above modals */
+.tremor-Callout-root {
+  position: relative;
+  z-index: 50;
+}
+
 @layer components {
   .btn-primary {
     @apply bg-brand-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-brand-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed;

@@ -58,11 +58,11 @@ export const api = {
 
   // Data Ingestion API-First endpoints
   ingest: {
-    prestadores: (batch) => request('/data-ingest/prestadores/batch', { method: 'POST', body: JSON.stringify(batch) }),
-    nomencladores: (batch) => request('/data-ingest/nomencladores/batch', { method: 'POST', body: JSON.stringify(batch) }),
-    acuerdos: (batch) => request('/data-ingest/acuerdos/batch', { method: 'POST', body: JSON.stringify(batch) }),
-    jobStatus: (jobId) => request(`/data-ingest/jobs/${jobId}/status`),
-    stats: () => request('/data-ingest/stats'),
+    prestadores: (batch) => request('/data/prestadores/batch', { method: 'POST', body: JSON.stringify(batch) }),
+    nomencladores: (batch) => request('/data/nomencladores/batch', { method: 'POST', body: JSON.stringify(batch) }),
+    acuerdos: (batch) => request('/data/acuerdos/batch', { method: 'POST', body: JSON.stringify(batch) }),
+    jobStatus: (jobId) => request(`/data/jobs/${jobId}/status`),
+    stats: () => request('/data/stats'),
   },
 
   // Ordenes Batch Processing
@@ -73,6 +73,6 @@ export const api = {
 
   // Feedback / Pre-visacion
   feedback: {
-    submit: (idVisacion, body) => request(`/feedback/${idVisacion}/feedback`, { method: 'POST', body: JSON.stringify(body) }),
+    submit: (idVisacion, body) => request(`/ordenes/${idVisacion}/feedback`, { method: 'POST', body: JSON.stringify(body) }),
   },
 };

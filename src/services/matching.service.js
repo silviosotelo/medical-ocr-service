@@ -8,22 +8,29 @@ class MatchingService {
    * Buscar nomencladores por descripción (búsqueda vectorial + fuzzy)
    * @param {string} descripcion - Descripción de la práctica
    * @param {number} limite - Cantidad de resultados
+   * @param {string} tenantId - ID del tenant
    * @returns {Promise<Array>} - Array de nomencladores con similitud
    */
-  async buscarNomencladores(descripcion, limite = 10) {
+  async buscarNomencladores(descripcion, limite = 10, tenantId = null) {
     try {
-      // 1. Generar embedding de la descripción
       const embedding = await embeddingService.generateEmbedding(descripcion);
-      
+
       if (!embedding) {
         throw new Error('No se pudo generar embedding');
       }
 
       const embeddingStr = `[${embedding.join(',')}]`;
 
-      // 2. Búsqueda vectorial
+      const params = [embeddingStr, descripcion.toLowerCase()];
+      let tenantFilter = '';
+      if (tenantId) {
+        params.push(tenantId);
+        tenantFilter = `AND tenant_id = $${params.length}`;
+      }
+      params.push(limite);
+
       const result = await query(`
-        SELECT 
+        SELECT
           id_nomenclador,
           especialidad,
           descripcion,
@@ -33,13 +40,12 @@ class MatchingService {
           (1 - (descripcion_embedding <=> $1::vector)) as similitud_vectorial,
           similarity(descripcion_normalizada, $2) as similitud_trigram
         FROM nomencladores
-        WHERE estado = 'ACTIVO'
-        ORDER BY 
+        WHERE estado = 'ACTIVO' ${tenantFilter}
+        ORDER BY
           descripcion_embedding <=> $1::vector
-        LIMIT $3
-      `, [embeddingStr, descripcion.toLowerCase(), limite]);
+        LIMIT $${params.length}
+      `, params);
 
-      // 3. Calcular similitud combinada (70% vectorial, 30% trigram)
       const resultados = result.rows.map(row => ({
         id_nomenclador: row.id_nomenclador,
         especialidad: row.especialidad,
@@ -55,7 +61,6 @@ class MatchingService {
         )
       }));
 
-      // Reordenar por similitud combinada
       resultados.sort((a, b) => b.similitud_combinada - a.similitud_combinada);
 
       logger.info('Búsqueda de nomencladores', {
@@ -76,14 +81,21 @@ class MatchingService {
    * Buscar prestador por nombre (búsqueda vectorial + fuzzy)
    * @param {string} nombre - Nombre del prestador
    * @param {string} ruc - RUC del prestador (opcional)
+   * @param {string} tenantId - ID del tenant
    * @returns {Promise<Array>} - Array de prestadores con similitud
    */
-  async buscarPrestador(nombre, ruc = null) {
+  async buscarPrestador(nombre, ruc = null, tenantId = null) {
     try {
-      // 1. Si tiene RUC, buscar por RUC primero (exacto)
       if (ruc) {
+        const params = [ruc];
+        let tenantFilter = '';
+        if (tenantId) {
+          params.push(tenantId);
+          tenantFilter = `AND tenant_id = $${params.length}`;
+        }
+
         const resultRuc = await query(`
-          SELECT 
+          SELECT
             id_prestador,
             nombre_fantasia,
             raz_soc_nombre,
@@ -95,8 +107,8 @@ class MatchingService {
             1.0 as similitud_combinada
           FROM prestadores
           WHERE ruc = $1
-          AND estado = 'ACTIVO'
-        `, [ruc]);
+          AND estado = 'ACTIVO' ${tenantFilter}
+        `, params);
 
         if (resultRuc.rows.length > 0) {
           logger.info('Prestador encontrado por RUC', { ruc, id_prestador: resultRuc.rows[0].id_prestador });
@@ -104,18 +116,23 @@ class MatchingService {
         }
       }
 
-      // 2. Generar embedding del nombre
       const embedding = await embeddingService.generateEmbedding(nombre);
-      
+
       if (!embedding) {
         throw new Error('No se pudo generar embedding');
       }
 
       const embeddingStr = `[${embedding.join(',')}]`;
 
-      // 3. Búsqueda vectorial + trigram
+      const params = [embeddingStr, nombre.toLowerCase()];
+      let tenantFilter = '';
+      if (tenantId) {
+        params.push(tenantId);
+        tenantFilter = `AND tenant_id = $${params.length}`;
+      }
+
       const result = await query(`
-        SELECT 
+        SELECT
           id_prestador,
           nombre_fantasia,
           raz_soc_nombre,
@@ -125,13 +142,12 @@ class MatchingService {
           (1 - (nombre_embedding <=> $1::vector)) as similitud_vectorial,
           similarity(nombre_normalizado, $2) as similitud_trigram
         FROM prestadores
-        WHERE estado = 'ACTIVO'
-        ORDER BY 
+        WHERE estado = 'ACTIVO' ${tenantFilter}
+        ORDER BY
           nombre_embedding <=> $1::vector
         LIMIT 5
-      `, [embeddingStr, nombre.toLowerCase()]);
+      `, params);
 
-      // 4. Calcular similitud combinada
       const resultados = result.rows.map(row => ({
         id_prestador: row.id_prestador,
         nombre_fantasia: row.nombre_fantasia,
@@ -166,12 +182,20 @@ class MatchingService {
   /**
    * Buscar prestador por matrícula
    * @param {string} matricula - Matrícula nacional o registro profesional
+   * @param {string} tenantId - ID del tenant
    * @returns {Promise<Object|null>} - Prestador encontrado o null
    */
-  async buscarPrestadorPorMatricula(matricula) {
+  async buscarPrestadorPorMatricula(matricula, tenantId = null) {
     try {
+      const params = [matricula];
+      let tenantFilter = '';
+      if (tenantId) {
+        params.push(tenantId);
+        tenantFilter = `AND tenant_id = $${params.length}`;
+      }
+
       const result = await query(`
-        SELECT 
+        SELECT
           id_prestador,
           nombre_fantasia,
           raz_soc_nombre,
@@ -179,18 +203,18 @@ class MatchingService {
           registro_profesional
         FROM prestadores
         WHERE registro_profesional = $1
-        AND estado = 'ACTIVO'
+        AND estado = 'ACTIVO' ${tenantFilter}
         LIMIT 1
-      `, [matricula]);
+      `, params);
 
       if (result.rows.length === 0) {
         logger.info('Prestador no encontrado por matrícula', { matricula });
         return null;
       }
 
-      logger.info('Prestador encontrado por matrícula', { 
-        matricula, 
-        id_prestador: result.rows[0].id_prestador 
+      logger.info('Prestador encontrado por matrícula', {
+        matricula,
+        id_prestador: result.rows[0].id_prestador
       });
 
       return result.rows[0];
@@ -206,13 +230,20 @@ class MatchingService {
    * @param {number} idPrestador - ID del prestador
    * @param {number} idNomenclador - ID del nomenclador
    * @param {number} idPlan - ID del plan (opcional, default 1)
+   * @param {string} tenantId - ID del tenant
    * @returns {Promise<Object|null>} - Acuerdo encontrado o null
    */
-  async verificarAcuerdo(idPrestador, idNomenclador, idPlan = 1) {
+  async verificarAcuerdo(idPrestador, idNomenclador, idPlan = 1, tenantId = null) {
     try {
-      // Buscar acuerdo vigente más reciente
+      const params = [idPrestador, idNomenclador, idPlan];
+      let tenantFilter = '';
+      if (tenantId) {
+        params.push(tenantId);
+        tenantFilter = `AND tenant_id = $${params.length}`;
+      }
+
       const result = await query(`
-        SELECT 
+        SELECT
           id_acuerdo,
           prest_id_prestador,
           id_nomenclador,
@@ -226,20 +257,20 @@ class MatchingService {
         WHERE prest_id_prestador = $1
         AND id_nomenclador = $2
         AND plan_id_plan = $3
-        AND vigente = 'SI'
+        AND vigente = 'SI' ${tenantFilter}
         ORDER BY fecha_vigencia DESC
         LIMIT 1
-      `, [idPrestador, idNomenclador, idPlan]);
+      `, params);
 
       if (result.rows.length === 0) {
         logger.info('No existe acuerdo', { idPrestador, idNomenclador, idPlan });
         return null;
       }
 
-      logger.info('Acuerdo encontrado', { 
-        idPrestador, 
-        idNomenclador, 
-        precio: result.rows[0].precio 
+      logger.info('Acuerdo encontrado', {
+        idPrestador,
+        idNomenclador,
+        precio: result.rows[0].precio
       });
 
       return result.rows[0];
@@ -255,16 +286,24 @@ class MatchingService {
    * @param {number} idPrestador - ID del prestador
    * @param {Array<number>} idsNomencladores - IDs de nomencladores candidatos
    * @param {number} idPlan - ID del plan
+   * @param {string} tenantId - ID del tenant
    * @returns {Promise<Array>} - Nomencladores con acuerdo
    */
-  async buscarNomencladoresConAcuerdo(idPrestador, idsNomencladores, idPlan = 1) {
+  async buscarNomencladoresConAcuerdo(idPrestador, idsNomencladores, idPlan = 1, tenantId = null) {
     try {
       if (!idsNomencladores || idsNomencladores.length === 0) {
         return [];
       }
 
+      const params = [idPrestador, idPlan, idsNomencladores];
+      let tenantFilter = '';
+      if (tenantId) {
+        params.push(tenantId);
+        tenantFilter = `AND a.tenant_id = $${params.length}`;
+      }
+
       const result = await query(`
-        SELECT 
+        SELECT
           n.id_nomenclador,
           n.especialidad,
           n.descripcion,
@@ -277,13 +316,13 @@ class MatchingService {
         WHERE a.prest_id_prestador = $1
         AND a.plan_id_plan = $2
         AND a.vigente = 'SI'
-        AND n.id_nomenclador = ANY($3)
+        AND n.id_nomenclador = ANY($3) ${tenantFilter}
         ORDER BY a.fecha_vigencia DESC
-      `, [idPrestador, idPlan, idsNomencladores]);
+      `, params);
 
-      logger.info('Nomencladores con acuerdo', { 
-        idPrestador, 
-        encontrados: result.rows.length 
+      logger.info('Nomencladores con acuerdo', {
+        idPrestador,
+        encontrados: result.rows.length
       });
 
       return result.rows;
@@ -299,15 +338,15 @@ class MatchingService {
    * @param {Object} practica - Práctica extraída por IA
    * @param {number} idPrestador - ID del prestador emisor
    * @param {number} idPlan - ID del plan del cliente
+   * @param {string} tenantId - ID del tenant
    * @returns {Promise<Object>} - Resultado del matching
    */
-  async procesarMatchingPractica(practica, idPrestador, idPlan = 1) {
+  async procesarMatchingPractica(practica, idPrestador, idPlan = 1, tenantId = null) {
     try {
       const descripcionOriginal = practica.descripcion_original;
       const cantidad = practica.cantidad || 1;
 
-      // 1. Buscar nomencladores similares
-      const matchesNomen = await this.buscarNomencladores(descripcionOriginal, 10);
+      const matchesNomen = await this.buscarNomencladores(descripcionOriginal, 10, tenantId);
 
       if (matchesNomen.length === 0) {
         return {
@@ -321,22 +360,19 @@ class MatchingService {
         };
       }
 
-      // 2. Filtrar los que tienen acuerdo con el prestador
       const idsNomencladores = matchesNomen.map(m => m.id_nomenclador);
-      const conAcuerdo = await this.buscarNomencladoresConAcuerdo(idPrestador, idsNomencladores, idPlan);
+      const conAcuerdo = await this.buscarNomencladoresConAcuerdo(idPrestador, idsNomencladores, idPlan, tenantId);
 
       let mejorMatch;
       let tieneAcuerdo = false;
       let precioAcuerdo = null;
       let idAcuerdo = null;
 
-      // 3. Priorizar nomencladores con acuerdo
       if (conAcuerdo.length > 0) {
-        // Encontrar el mejor match que tenga acuerdo
-        mejorMatch = matchesNomen.find(m => 
+        mejorMatch = matchesNomen.find(m =>
           conAcuerdo.some(ca => ca.id_nomenclador === m.id_nomenclador)
         );
-        
+
         if (mejorMatch) {
           const acuerdo = conAcuerdo.find(ca => ca.id_nomenclador === mejorMatch.id_nomenclador);
           tieneAcuerdo = true;
@@ -345,12 +381,10 @@ class MatchingService {
         }
       }
 
-      // Si no hay acuerdo, tomar el mejor match general
       if (!mejorMatch) {
         mejorMatch = matchesNomen[0];
       }
 
-      // 4. Preparar matches alternativos (top 5, excluyendo el principal)
       const matchesAlternativos = matchesNomen
         .filter(m => m.id_nomenclador !== mejorMatch.id_nomenclador)
         .slice(0, 5)

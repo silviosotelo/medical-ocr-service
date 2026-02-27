@@ -3,6 +3,7 @@ const router = express.Router();
 const Joi = require('joi');
 const { query } = require('../../config/database.config');
 const { authMiddleware } = require('../../middlewares/auth.middleware');
+const { tenantMiddleware } = require('../../middlewares/tenant.middleware');
 const preVisacionService = require('../../services/pre-visacion.service');
 const webhookService = require('../../services/webhook.service');
 const logger = require('../../config/logger.config');
@@ -16,7 +17,7 @@ function apiKeyOrBearerAuth(req, res, next) {
   return authMiddleware(req, res, next);
 }
 
-router.use(apiKeyOrBearerAuth);
+router.use(apiKeyOrBearerAuth, tenantMiddleware);
 
 // =====================================================================
 // Validation schemas
@@ -55,7 +56,17 @@ router.post('/:id_visacion/feedback', async (req, res) => {
     }
 
     const idVisacion = parseInt(req.params.id_visacion);
+    const tenantId = req.tenantId;
     const { accion, usuario, motivo, correcciones } = value;
+
+    // Verify visacion belongs to this tenant
+    const ownerCheck = await query(
+      `SELECT id_visacion_previa FROM visacion_previa WHERE id_visacion_previa = $1 AND tenant_id = $2`,
+      [idVisacion, tenantId]
+    );
+    if (ownerCheck.rowCount === 0) {
+      return res.status(404).json({ status: 'error', error: { code: 'NOT_FOUND', message: 'Pre-visacion not found' } });
+    }
 
     let result;
     let estadoFinal;
@@ -63,7 +74,7 @@ router.post('/:id_visacion/feedback', async (req, res) => {
     let usadoEnTraining = false;
 
     if (accion === 'APROBAR') {
-      result = await preVisacionService.aprobarPreVisacion(idVisacion, usuario);
+      result = await preVisacionService.aprobarPreVisacion(idVisacion, usuario, tenantId);
       estadoFinal = 'APROBADA';
 
       // Register positive feedback in feedback_matching
@@ -77,9 +88,9 @@ router.post('/:id_visacion/feedback', async (req, res) => {
         for (const det of detalles.rows) {
           if (det.nomenclador_id_sugerido) {
             await query(
-              `INSERT INTO feedback_matching (visacion_previa_id, det_previa_id, tipo, descripcion_original, id_sugerido_ia, id_correcto, razon, usuario)
-               VALUES ($1, $2, 'aprobado', $3, $4, $4, 'Aprobado por usuario', $5)`,
-              [idVisacion, det.id_det_previa, det.descripcion_original, det.nomenclador_id_sugerido, usuario]
+              `INSERT INTO feedback_matching (visacion_previa_id, det_previa_id, tipo, descripcion_original, id_sugerido_ia, id_correcto, razon, usuario, tenant_id)
+               VALUES ($1, $2, 'aprobado', $3, $4, $4, 'Aprobado por usuario', $5, $6)`,
+              [idVisacion, det.id_det_previa, det.descripcion_original, det.nomenclador_id_sugerido, usuario, tenantId]
             );
           }
         }
@@ -88,7 +99,7 @@ router.post('/:id_visacion/feedback', async (req, res) => {
         logger.warn('Could not register approval feedback', { error: feedbackErr.message });
       }
     } else if (accion === 'RECHAZAR') {
-      result = await preVisacionService.rechazarPreVisacion(idVisacion, usuario, motivo);
+      result = await preVisacionService.rechazarPreVisacion(idVisacion, usuario, motivo, tenantId);
       estadoFinal = 'RECHAZADA';
     } else if (accion === 'CORREGIR') {
       // Get detalles to find det_previa_id by item number
@@ -114,7 +125,8 @@ router.post('/:id_visacion/feedback', async (req, res) => {
             idDetPrevia,
             correccion.id_nomenclador_correcto,
             usuario,
-            correccion.razon || motivo || 'Corrección manual'
+            correccion.razon || motivo || 'Corrección manual',
+            tenantId
           );
           correccionesAplicadas++;
         }
@@ -151,16 +163,14 @@ router.post('/:id_visacion/feedback', async (req, res) => {
       usado_en_training: usadoEnTraining,
     };
 
-    if (req.tenantId) {
-      try {
-        if (webhookService.dispatchWithRetry) {
-          await webhookService.dispatchWithRetry(req.tenantId, 'previsacion.feedback_recibido', webhookPayload);
-        } else {
-          await webhookService.dispatch(req.tenantId, 'previsacion.feedback_recibido', webhookPayload);
-        }
-      } catch (webhookErr) {
-        logger.warn('Failed to dispatch feedback webhook', { error: webhookErr.message });
+    try {
+      if (webhookService.dispatchWithRetry) {
+        await webhookService.dispatchWithRetry(tenantId, 'previsacion.feedback_recibido', webhookPayload);
+      } else {
+        await webhookService.dispatch(tenantId, 'previsacion.feedback_recibido', webhookPayload);
       }
+    } catch (webhookErr) {
+      logger.warn('Failed to dispatch feedback webhook', { error: webhookErr.message });
     }
 
     res.json({

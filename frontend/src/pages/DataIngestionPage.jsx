@@ -99,7 +99,7 @@ function PrestadoresTab() {
     setResult(null);
     try {
       const data = JSON.parse(json);
-      const res = await api.ingest.prestadores({ registros: data });
+      const res = await api.ingest.prestadores({ prestadores: data });
       setResult({ success: true, data: res.data });
       if (res.data?.job_id) setJobId(res.data.job_id);
     } catch (err) {
@@ -163,7 +163,7 @@ function NomencladoresTab() {
     setResult(null);
     try {
       const data = JSON.parse(json);
-      const res = await api.ingest.nomencladores({ registros: data });
+      const res = await api.ingest.nomencladores({ nomencladores: data });
       setResult({ success: true, data: res.data });
       if (res.data?.job_id) setJobId(res.data.job_id);
     } catch (err) {
@@ -223,7 +223,7 @@ function AcuerdosTab() {
     setResult(null);
     try {
       const data = JSON.parse(json);
-      const res = await api.ingest.acuerdos({ registros: data });
+      const res = await api.ingest.acuerdos({ acuerdos: data });
       setResult({ success: true, data: res.data });
     } catch (err) {
       setResult({ success: false, message: err.message });

@@ -50,10 +50,10 @@ class PrevisacionWorker {
         planId: metadata?.plan_id,
       });
 
-      // 4. Save in ordenes_procesadas
+      // 4. Save in ordenes_procesadas (with tenant_id)
       const ordenResult = await query(
-        `INSERT INTO ordenes_procesadas (archivo_nombre, archivo_tipo, resultado_ia, modelo_usado, tokens_usados, tiempo_procesamiento_ms, confianza_promedio)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO ordenes_procesadas (archivo_nombre, archivo_tipo, resultado_ia, modelo_usado, tokens_usados, tiempo_procesamiento_ms, confianza_promedio, tenant_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id`,
         [
           archivo_nombre,
@@ -63,13 +63,14 @@ class PrevisacionWorker {
           resultadoIA.metadata?.tokens_usados || 0,
           resultadoIA.metadata?.tiempo_procesamiento_ms || 0,
           resultadoIA.metadata?.confianza_general || 0,
+          tenant_id || null,
         ]
       );
 
       const ordenId = ordenResult.rows[0].id;
 
-      // 5. Generate pre-visacion
-      const preVisacion = await preVisacionService.generarPreVisacion(ordenId, resultadoIA);
+      // 5. Generate pre-visacion (with tenant_id)
+      const preVisacion = await preVisacionService.generarPreVisacion(ordenId, resultadoIA, tenant_id);
 
       // 6. Save result in ingestion_jobs.resultado
       const processingTime = Date.now() - startTime;
