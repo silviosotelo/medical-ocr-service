@@ -6,6 +6,7 @@ const fs = require('fs-extra');
 const path = require('path');
 
 const jobQueueService = require('./src/services/job-queue.service');
+const autoTrainingService = require('./src/services/auto-training.service');
 
 const PORT = process.env.PORT || 3000;
 
@@ -55,6 +56,9 @@ async function startServer() {
 
     // Start the job queue processor
     jobQueueService.start();
+
+    // Start auto-training service (recovers model from DB + schedules checks)
+    await autoTrainingService.start();
 
     const server = app.listen(PORT, () => {
       logger.info(`Medical OCR Service running on port ${PORT}`);

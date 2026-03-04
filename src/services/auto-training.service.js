@@ -19,6 +19,11 @@ class AutoTrainingService {
   }
 
   async start() {
+    // Always recover the latest trained model from DB on startup,
+    // regardless of AUTO_TRAINING_ENABLED — this ensures the fine-tuned
+    // model survives container restarts.
+    await this._recoverModel();
+
     if (!this.autoTrainingEnabled) {
       logger.info('Auto-training is disabled');
       return;
@@ -34,6 +39,30 @@ class AutoTrainingService {
     }, this.trainingCheckInterval);
 
     setTimeout(() => this.verificarYEntrenar(), 10000);
+  }
+
+  async _recoverModel() {
+    try {
+      const result = await query(`
+        SELECT modelo_resultante
+        FROM finetune_jobs
+        WHERE estado = 'succeeded'
+          AND modelo_resultante IS NOT NULL
+        ORDER BY completado_en DESC
+        LIMIT 1
+      `);
+
+      if (result.rows.length > 0) {
+        const modelo = result.rows[0].modelo_resultante;
+        this._currentModel = modelo;
+        process.env.FINE_TUNED_MODEL = modelo;
+        logger.info('Fine-tuned model recovered from DB', { modelo });
+      } else {
+        logger.info('No fine-tuned model found in DB, using base model');
+      }
+    } catch (error) {
+      logger.warn('Could not recover fine-tuned model from DB', { error: error.message });
+    }
   }
 
   async verificarYEntrenar() {
@@ -158,8 +187,10 @@ class AutoTrainingService {
           fm.descripcion_original,
           fm.id_correcto,
           fm.tipo,
+          n.id_externo as id_externo_nomenclador,
           n.descripcion as nomenclador_correcto,
           n.especialidad,
+          p.id_externo as id_externo_prestador,
           p.nombre_fantasia as prestador_correcto
         FROM feedback_matching fm
         LEFT JOIN nomencladores n ON n.id_nomenclador = fm.id_correcto AND fm.tipo = 'nomenclador'
@@ -292,7 +323,7 @@ class AutoTrainingService {
     if (tipo === 'nomenclador' && feedback.nomenclador_correcto) {
       userContent = `Identifica el nomenclador correcto para la siguiente práctica médica extraída de una orden:\n\nPráctica: "${feedback.descripcion_original}"`;
       assistantContent = JSON.stringify({
-        id_nomenclador: feedback.id_correcto,
+        id_externo: feedback.id_externo_nomenclador || null,
         descripcion: feedback.nomenclador_correcto,
         especialidad: feedback.especialidad || null,
         confianza: 1.0
@@ -300,7 +331,7 @@ class AutoTrainingService {
     } else if (tipo === 'prestador' && feedback.prestador_correcto) {
       userContent = `Identifica el prestador correcto para el siguiente nombre extraído de una orden:\n\nPrestador: "${feedback.descripcion_original}"`;
       assistantContent = JSON.stringify({
-        id_prestador: feedback.id_correcto,
+        id_externo: feedback.id_externo_prestador || null,
         nombre: feedback.prestador_correcto,
         confianza: 1.0
       });

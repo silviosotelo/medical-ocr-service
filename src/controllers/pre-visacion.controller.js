@@ -25,7 +25,10 @@ class PreVisacionController {
         size: archivo.size
       });
 
-      const resultadoIA = await gptVisionService.processOrder(archivo.path);
+      const tenantId = req.tenantId || null;
+      const contextoRAG = await ragService.generarContextoGeneral(tenantId);
+
+      const resultadoIA = await gptVisionService.processOrder(archivo.path, { contextoRAG });
 
       const ordenId = await feedbackService.guardarOrdenProcesada({
         archivoNombre: archivo.originalname,
@@ -38,7 +41,7 @@ class PreVisacionController {
         confianzaPromedio: resultadoIA.metadata?.confianza_general || 0
       });
 
-      const preVisacion = await preVisacionService.generarPreVisacion(ordenId, resultadoIA);
+      const preVisacion = await preVisacionService.generarPreVisacion(ordenId, resultadoIA, tenantId);
 
       const urlApex = process.env.APEX_URL
         ? `${process.env.APEX_URL}/apex/f?p=${process.env.APEX_APP_ID}:APROBAR_PREVISACION:SESSION::NO::P_ID:${preVisacion.id_visacion_previa}`
@@ -101,7 +104,10 @@ class PreVisacionController {
       tempFilePath = path.join(os.tmpdir(), `temp_orden_${Date.now()}${extension}`);
       await fs.writeFile(tempFilePath, response.data);
 
-      const resultadoIA = await gptVisionService.processOrder(tempFilePath);
+      const tenantId = req.tenantId || null;
+      const contextoRAG = await ragService.generarContextoGeneral(tenantId);
+
+      const resultadoIA = await gptVisionService.processOrder(tempFilePath, { contextoRAG });
 
       const ordenId = await feedbackService.guardarOrdenProcesada({
         archivoNombre: path.basename(archivo_url),
@@ -114,7 +120,7 @@ class PreVisacionController {
         confianzaPromedio: resultadoIA.metadata?.confianza_general || 0
       });
 
-      const preVisacion = await preVisacionService.generarPreVisacion(ordenId, resultadoIA);
+      const preVisacion = await preVisacionService.generarPreVisacion(ordenId, resultadoIA, tenantId);
 
       return res.status(200).json({
         status: 'success',

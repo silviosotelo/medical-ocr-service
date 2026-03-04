@@ -121,6 +121,73 @@ class RAGService {
     }
   }
 
+  /**
+   * Genera un contexto general con prestadores y nomencladores del tenant
+   * para enriquecer los prompts de OpenAI antes de procesar una imagen.
+   * @param {string|null} tenantId
+   * @returns {Promise<string>}
+   */
+  async generarContextoGeneral(tenantId = null) {
+    try {
+      const tenantFilter = tenantId ? 'AND tenant_id = $1' : '';
+      const tenantParam = tenantId ? [tenantId] : [];
+
+      const [nomResult, prestResult] = await Promise.all([
+        query(
+          `SELECT id_externo, descripcion, especialidad
+           FROM nomencladores
+           WHERE estado = 'ACTIVO' ${tenantFilter}
+             AND descripcion_embedding IS NOT NULL
+           ORDER BY COALESCE(cantidad_acuerdos, 0) DESC
+           LIMIT 60`,
+          tenantParam
+        ),
+        query(
+          `SELECT id_externo, nombre_fantasia, ruc, registro_profesional, tipo
+           FROM prestadores
+           WHERE estado = 'ACTIVO' ${tenantFilter}
+             AND nombre_embedding IS NOT NULL
+           ORDER BY COALESCE(cantidad_acuerdos, 0) DESC
+           LIMIT 25`,
+          tenantParam
+        ),
+      ]);
+
+      let ctx = '';
+
+      if (prestResult.rows.length > 0) {
+        ctx += `### PRESTADORES REGISTRADOS EN EL SISTEMA\n`;
+        for (const p of prestResult.rows) {
+          ctx += `- [${p.id_externo}] ${p.nombre_fantasia}`;
+          if (p.ruc) ctx += ` | RUC: ${p.ruc}`;
+          if (p.registro_profesional) ctx += ` | Mat: ${p.registro_profesional}`;
+          ctx += `\n`;
+        }
+        ctx += '\n';
+      }
+
+      if (nomResult.rows.length > 0) {
+        ctx += `### NOMENCLADORES DISPONIBLES (ordenados por frecuencia)\n`;
+        const byEsp = {};
+        for (const n of nomResult.rows) {
+          const esp = n.especialidad || 'GENERAL';
+          if (!byEsp[esp]) byEsp[esp] = [];
+          byEsp[esp].push(n);
+        }
+        for (const [esp, noms] of Object.entries(byEsp)) {
+          ctx += `**${esp}:** `;
+          ctx += noms.map(n => `[${n.id_externo}] ${n.descripcion}`).join(' | ');
+          ctx += '\n';
+        }
+      }
+
+      return ctx;
+    } catch (error) {
+      logger.error('Failed to generate general RAG context', { error: error.message });
+      return '';
+    }
+  }
+
   async buscarPrestadorSimilar(nombre, limite = 3) {
     try {
       if (!nombre) return [];
