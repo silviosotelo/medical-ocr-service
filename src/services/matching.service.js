@@ -32,6 +32,7 @@ class MatchingService {
       const result = await query(`
         SELECT
           id_nomenclador,
+          id_externo,
           especialidad,
           descripcion,
           grupo,
@@ -48,6 +49,7 @@ class MatchingService {
 
       const resultados = result.rows.map(row => ({
         id_nomenclador: row.id_nomenclador,
+        id_externo: row.id_externo,
         especialidad: row.especialidad,
         descripcion: row.descripcion,
         grupo: row.grupo,
@@ -97,6 +99,7 @@ class MatchingService {
         const resultRuc = await query(`
           SELECT
             id_prestador,
+            id_externo,
             nombre_fantasia,
             raz_soc_nombre,
             ruc,
@@ -134,6 +137,7 @@ class MatchingService {
       const result = await query(`
         SELECT
           id_prestador,
+          id_externo,
           nombre_fantasia,
           raz_soc_nombre,
           ruc,
@@ -150,6 +154,7 @@ class MatchingService {
 
       const resultados = result.rows.map(row => ({
         id_prestador: row.id_prestador,
+        id_externo: row.id_externo,
         nombre_fantasia: row.nombre_fantasia,
         raz_soc_nombre: row.raz_soc_nombre,
         ruc: row.ruc,
@@ -197,6 +202,7 @@ class MatchingService {
       const result = await query(`
         SELECT
           id_prestador,
+          id_externo,
           nombre_fantasia,
           raz_soc_nombre,
           ruc,
@@ -305,6 +311,7 @@ class MatchingService {
       const result = await query(`
         SELECT
           n.id_nomenclador,
+          n.id_externo,
           n.especialidad,
           n.descripcion,
           a.precio,
@@ -389,7 +396,9 @@ class MatchingService {
         .filter(m => m.id_nomenclador !== mejorMatch.id_nomenclador)
         .slice(0, 5)
         .map(m => ({
+          id: m.id_externo,
           id_nomenclador: m.id_nomenclador,
+          id_externo: m.id_externo,
           descripcion: m.descripcion,
           especialidad: m.especialidad,
           similitud: m.similitud_combinada,
@@ -400,7 +409,9 @@ class MatchingService {
         descripcion_original: descripcionOriginal,
         cantidad: cantidad,
         nomenclador_sugerido: {
+          id: mejorMatch.id_externo,
           id_nomenclador: mejorMatch.id_nomenclador,
+          id_externo: mejorMatch.id_externo,
           descripcion: mejorMatch.descripcion,
           especialidad: mejorMatch.especialidad,
           grupo: mejorMatch.grupo,

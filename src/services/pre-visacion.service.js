@@ -42,11 +42,12 @@ class PreVisacionService {
         }
 
         let medicoIdPrestador = null;
+        let medicoPrestador = null;
         const matricula = datos.medico_solicitante?.matricula_nacional || datos.medico_solicitante?.matricula;
         if (matricula) {
-          const medico = await matchingService.buscarPrestadorPorMatricula(matricula, tenantId);
-          if (medico) {
-            medicoIdPrestador = medico.id_prestador;
+          medicoPrestador = await matchingService.buscarPrestadorPorMatricula(matricula, tenantId);
+          if (medicoPrestador) {
+            medicoIdPrestador = medicoPrestador.id_prestador;
           }
         }
 
@@ -201,6 +202,8 @@ class PreVisacionService {
           paciente: datos.paciente,
           fecha_orden: datos.orden?.fecha_emision,
           prestador_sugerido: prestadorEmisor ? {
+            id: prestadorEmisor.id_externo,
+            id_externo: prestadorEmisor.id_externo,
             id_prestador: prestadorEmisor.id_prestador,
             nombre_fantasia: prestadorEmisor.nombre_fantasia,
             ruc: prestadorEmisor.ruc,
@@ -209,6 +212,8 @@ class PreVisacionService {
           medico: {
             nombre: datos.medico_solicitante?.nombre_completo || datos.medico_solicitante?.nombre,
             matricula: matricula,
+            id: medicoPrestador?.id_externo || null,
+            id_externo: medicoPrestador?.id_externo || null,
             id_prestador: medicoIdPrestador
           },
           diagnostico: datos.diagnostico,
@@ -301,6 +306,7 @@ class PreVisacionService {
       const cabecera = await query(`
         SELECT
           vp.*,
+          p.id_externo as prestador_id_externo,
           p.nombre_fantasia as prestador_nombre,
           p.ruc as prestador_ruc
         FROM visacion_previa vp
@@ -315,11 +321,15 @@ class PreVisacionService {
       const detalles = await query(`
         SELECT
           dvp.*,
+          n.id_externo as nomenclador_id_externo,
           n.descripcion as nomenclador_descripcion_full,
           n.especialidad as nomenclador_especialidad,
+          nc.id_externo as nomenclador_corregido_id_externo,
+          pe.id_externo as prestador_ejecutor_id_externo,
           pe.nombre_fantasia as prestador_ejecutor_nombre_completo
         FROM det_visacion_previa dvp
         LEFT JOIN nomencladores n ON n.id_nomenclador = dvp.nomenclador_id_sugerido
+        LEFT JOIN nomencladores nc ON nc.id_nomenclador = dvp.nomenclador_id_corregido
         LEFT JOIN prestadores pe ON pe.id_prestador = dvp.prestador_ejecutor_id
         WHERE dvp.visacion_previa_id = $1
         ORDER BY dvp.item

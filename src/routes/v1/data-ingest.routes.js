@@ -422,6 +422,63 @@ router.get('/stats', async (req, res) => {
 });
 
 // =====================================================================
+// GET /v1/data/export/:type
+// Export data as JSON (prestadores, nomencladores, acuerdos)
+// =====================================================================
+router.get('/export/:type', async (req, res) => {
+  try {
+    const type = (req.params.type || '').toLowerCase();
+    if (!['prestadores', 'nomencladores', 'acuerdos'].includes(type)) {
+      return res.status(400).json({
+        status: 'error',
+        error: { code: 'INVALID_TYPE', message: 'type debe ser prestadores, nomencladores o acuerdos' },
+      });
+    }
+    const tenantId = req.tenantId;
+
+    let result;
+    if (type === 'prestadores') {
+      result = await query(
+        `SELECT id_externo as id, id_externo, nombre_fantasia, raz_soc_nombre as razon_social,
+                ruc, registro_profesional, tipo, ranking, estado
+         FROM prestadores WHERE tenant_id = $1 ORDER BY nombre_fantasia`,
+        [tenantId]
+      );
+    } else if (type === 'nomencladores') {
+      result = await query(
+        `SELECT id_externo as id, id_externo, id_servicio, especialidad, descripcion,
+                desc_nomenclador, grupo, subgrupo, sinonimos, palabras_clave, estado
+         FROM nomencladores WHERE tenant_id = $1 ORDER BY descripcion`,
+        [tenantId]
+      );
+    } else {
+      result = await query(
+        `SELECT ap.id_acuerdo, p.id_externo as id_prestador, p.nombre_fantasia as prestador_nombre,
+                n.id_externo as id_nomenclador, n.descripcion as nomenclador_descripcion,
+                ap.plan_id_plan as plan_id, ap.precio, ap.precio_normal,
+                ap.precio_diferenciado, ap.precio_internado, ap.vigente, ap.fecha_vigencia
+         FROM acuerdos_prestador ap
+         JOIN prestadores p ON p.id_prestador = ap.prest_id_prestador
+         JOIN nomencladores n ON n.id_nomenclador = ap.id_nomenclador
+         WHERE ap.tenant_id = $1
+         ORDER BY p.nombre_fantasia, n.descripcion`,
+        [tenantId]
+      );
+    }
+
+    res.json({
+      status: 'ok',
+      type,
+      total: result.rows.length,
+      data: result.rows,
+    });
+  } catch (err) {
+    logger.error('Error in GET /data/export/:type', { error: err.message });
+    res.status(500).json({ status: 'error', error: { code: 'EXPORT_ERROR', message: err.message } });
+  }
+});
+
+// =====================================================================
 // POST /v1/data/import?type=prestadores|nomencladores|acuerdos
 // Import from Excel/CSV file upload
 // =====================================================================

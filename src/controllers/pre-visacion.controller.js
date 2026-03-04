@@ -251,18 +251,36 @@ class PreVisacionController {
   async corregirNomenclador(req, res) {
     try {
       const { idDetalle } = req.params;
-      const { nomenclador_id_correcto, usuario, razon } = req.body;
+      const { nomenclador_id_correcto, nomenclador_id_externo, usuario, razon } = req.body;
 
-      if (!nomenclador_id_correcto || !usuario) {
+      if ((!nomenclador_id_correcto && !nomenclador_id_externo) || !usuario) {
         return res.status(400).json({
           status: 'error',
-          message: 'nomenclador_id_correcto y usuario requeridos'
+          message: 'Se requiere nomenclador_id_externo (o nomenclador_id_correcto) y usuario'
         });
+      }
+
+      let idInternoNomenclador = nomenclador_id_correcto ? parseInt(nomenclador_id_correcto) : null;
+
+      // Resolver id_externo a id interno si se proveyó
+      if (nomenclador_id_externo && !idInternoNomenclador) {
+        const { query } = require('../../config/database.config');
+        const found = await query(
+          `SELECT id_nomenclador FROM nomencladores WHERE id_externo = $1 LIMIT 1`,
+          [String(nomenclador_id_externo)]
+        );
+        if (found.rows.length === 0) {
+          return res.status(404).json({
+            status: 'error',
+            message: `Nomenclador con id_externo "${nomenclador_id_externo}" no encontrado`
+          });
+        }
+        idInternoNomenclador = found.rows[0].id_nomenclador;
       }
 
       const result = await preVisacionService.corregirNomenclador(
         parseInt(idDetalle),
-        parseInt(nomenclador_id_correcto),
+        idInternoNomenclador,
         usuario,
         razon || 'Corregido por visador'
       );
