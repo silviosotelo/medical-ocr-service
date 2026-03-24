@@ -14,8 +14,15 @@ router.post(
 // POST /api/visar/preview-url - Desde URL (Oracle)
 router.post('/preview-url', preVisacionController.procesarOrdenDesdeURL);
 
+// Static routes BEFORE parameterized routes
 // GET /api/visar/preview/pendientes
 router.get('/preview/pendientes', preVisacionController.listarPendientes);
+
+// GET /api/visar/preview/estadisticas
+router.get('/preview/estadisticas', preVisacionController.obtenerEstadisticas);
+
+// POST /api/visar/preview/detalle/:idDetalle/corregir
+router.post('/preview/detalle/:idDetalle/corregir', preVisacionController.corregirNomenclador);
 
 // GET /api/visar/preview/:id
 router.get('/preview/:id', preVisacionController.obtenerPreVisacion);
@@ -25,11 +32,5 @@ router.post('/preview/:id/aprobar', preVisacionController.aprobar);
 
 // POST /api/visar/preview/:id/rechazar
 router.post('/preview/:id/rechazar', preVisacionController.rechazar);
-
-// POST /api/visar/preview/detalle/:idDetalle/corregir
-router.post('/preview/detalle/:idDetalle/corregir', preVisacionController.corregirNomenclador);
-
-// GET /api/visar/preview/estadisticas
-router.get('/preview/estadisticas', preVisacionController.obtenerEstadisticas);
 
 module.exports = router;

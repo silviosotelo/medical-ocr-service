@@ -88,9 +88,14 @@ class GPTVisionService {
         if (jsonMatch) {
           parsedData = JSON.parse(jsonMatch[0]);
         } else {
-          logger.error('GPT-4o devolvió JSON inválido', { content });
-          throw new Error('IA devolvió respuesta inválida');
+          logger.error('GPT-4o devolvio JSON invalido', { content });
+          throw new Error('IA devolvio respuesta invalida');
         }
+      }
+
+      if (!parsedData || typeof parsedData !== 'object') {
+        logger.error('IA devolvio respuesta vacia o nula', { content, completionTokens: response.usage?.completion_tokens });
+        throw new Error('IA devolvio respuesta vacia o invalida');
       }
 
       trackTokenUsage({
@@ -142,10 +147,10 @@ class GPTVisionService {
         throw new Error('Rate limit excedido en OpenAI - intente nuevamente en unos segundos');
       }
       if (error.status === 400) {
-        throw new Error('Imagen inválida para OpenAI API - verifique el formato');
+        throw new Error('Imagen invalida para OpenAI API - verifique el formato');
       }
       if (error.status === 401) {
-        throw new Error('API Key de OpenAI inválida o expirada');
+        throw new Error('API Key de OpenAI invalida o expirada');
       }
 
       throw error;

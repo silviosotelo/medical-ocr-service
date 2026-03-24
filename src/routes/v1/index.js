@@ -12,6 +12,7 @@ const ordersRoutes = require('./orders.routes');
 const ordenesBatchRoutes = require('./ordenes-batch.routes');
 const feedbackRoutes = require('./feedback.routes');
 const plansRoutes = require('./plans.routes');
+const preVisacionRoutes = require('../pre-visacion.routes');
 
 router.use('/auth', authRoutes);
 router.use('/tenants', tenantRoutes);
@@ -24,6 +25,7 @@ router.use('/webhooks', webhookRoutes);
 router.use('/orders', ordersRoutes);
 router.use('/ordenes', ordenesBatchRoutes);
 router.use('/ordenes', feedbackRoutes);
+router.use('/visar', preVisacionRoutes);
 
 router.get('/version', (req, res) => {
   res.json({

@@ -86,4 +86,17 @@ export const api = {
   feedback: {
     submit: (idVisacion, body) => request(`/ordenes/${idVisacion}/feedback`, { method: 'POST', body: JSON.stringify(body) }),
   },
+
+  // Pre-visacion endpoints
+  previsacion: {
+    list: (params = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return request(`/visar/preview/pendientes${qs ? `?${qs}` : ''}`);
+    },
+    get: (id) => request(`/visar/preview/${id}`),
+    stats: () => request('/visar/preview/estadisticas'),
+    aprobar: (id, usuario) => request(`/visar/preview/${id}/aprobar`, { method: 'POST', body: JSON.stringify({ usuario }) }),
+    rechazar: (id, usuario, motivo) => request(`/visar/preview/${id}/rechazar`, { method: 'POST', body: JSON.stringify({ usuario, motivo }) }),
+    corregirDetalle: (idDetalle, body) => request(`/visar/preview/detalle/${idDetalle}/corregir`, { method: 'POST', body: JSON.stringify(body) }),
+  },
 };

@@ -13,6 +13,7 @@ import WebhooksPage from './pages/WebhooksPage';
 import DataIngestionPage from './pages/DataIngestionPage';
 import OrdenesProcessingPage from './pages/OrdenesProcessingPage';
 import PreVisacionesPage from './pages/PreVisacionesPage';
+import PreVisacionDetailPage from './pages/PreVisacionDetailPage';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -54,6 +55,7 @@ export default function App() {
                 <Route path="/data-ingest" element={<RoleRoute navKey="data-ingest"><DataIngestionPage /></RoleRoute>} />
                 <Route path="/ordenes-processing" element={<RoleRoute navKey="ordenes-processing"><OrdenesProcessingPage /></RoleRoute>} />
                 <Route path="/previsaciones" element={<RoleRoute navKey="previsaciones"><PreVisacionesPage /></RoleRoute>} />
+                <Route path="/previsaciones/:id" element={<RoleRoute navKey="previsaciones"><PreVisacionDetailPage /></RoleRoute>} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>

@@ -348,8 +348,13 @@ class PreVisacionService {
 
   async listarPendientes(filtros = {}, tenantId = null) {
     try {
-      const conditions = ["vp.estado = 'PENDIENTE'"];
+      const conditions = [];
       const params = [];
+
+      if (filtros.estado) {
+        params.push(filtros.estado);
+        conditions.push(`vp.estado = $${params.length}`);
+      }
 
       if (tenantId) {
         params.push(tenantId);

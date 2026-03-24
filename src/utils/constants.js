@@ -40,7 +40,7 @@ module.exports = {
   // Configuración de OpenAI
   OPENAI: {
     MODEL: 'gpt-4o',
-    MAX_TOKENS: 2000,
+    MAX_TOKENS: 4000,
     TEMPERATURE: 0.1,
     DETAIL_LEVEL: 'high',
     RETRY_ATTEMPTS: 3,

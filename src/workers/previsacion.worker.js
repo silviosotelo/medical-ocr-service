@@ -6,6 +6,7 @@ const pdfService = require('../services/pdf.service');
 const preVisacionService = require('../services/pre-visacion.service');
 const webhookService = require('../services/webhook.service');
 const jobQueueService = require('../services/job-queue.service');
+const ragService = require('../services/rag.service');
 const logger = require('../config/logger.config');
 
 class PrevisacionWorker {
@@ -45,10 +46,30 @@ class PrevisacionWorker {
         imagePath = typeof converted === 'string' ? converted : converted.imagePath || converted;
       }
 
-      // 3. Call GPT Vision to extract data
+      // 3. Generate RAG context (top nomencladores + prestadores) and call GPT Vision
+      let contextoRAG = '';
+      try {
+        contextoRAG = await ragService.generarContextoGeneral(tenant_id);
+      } catch (ragErr) {
+        logger.warn('RAG context generation failed, continuing without it', { jobId, error: ragErr.message });
+      }
       const resultadoIA = await gptVisionService.processOrder(imagePath, {
         planId: metadata?.plan_id,
+        contextoRAG,
       });
+
+      // 3b. Fallback: extraer practicas narrativas si GPT-4o devolvio practicas vacias
+      if (!resultadoIA.practicas || resultadoIA.practicas.length === 0) {
+        var textoObs = (resultadoIA.observaciones_ia && resultadoIA.observaciones_ia.texto_completo) || "";
+        var practicasNarrativa = this._extraerPracticasNarrativa(textoObs);
+        if (practicasNarrativa.length > 0) {
+          resultadoIA.practicas = practicasNarrativa;
+          if (!resultadoIA.metadatos_ia) { resultadoIA.metadatos_ia = {}; }
+          if (!resultadoIA.metadatos_ia.advertencias) { resultadoIA.metadatos_ia.advertencias = []; }
+          resultadoIA.metadatos_ia.advertencias.push("Practicas inferidas de texto narrativo - requieren confirmacion del auditor");
+          logger.info("Practicas extraidas de texto narrativo", { jobId: jobId, practicas: practicasNarrativa.length });
+        }
+      }
 
       // 4. Save in ordenes_procesadas (with tenant_id)
       const ordenResult = await query(
@@ -202,6 +223,42 @@ class PrevisacionWorker {
 
       throw error;
     }
+  }
+
+  _extraerPracticasNarrativa(texto) {
+    if (!texto || texto.trim().length < 5) { return []; }
+    var PROCS = [
+      { re: /radioterapia|RT/i,                            desc: "RADIOTERAPIA" },
+      { re: /quimioterapia|QTx|QT/i,                desc: "QUIMIOTERAPIA" },
+      { re: /inmunoterapia|IT/i,                          desc: "INMUNOTERAPIA" },
+      { re: /hormonoterapia|HT/i,                         desc: "HORMONOTERAPIA" },
+      { re: /cirug[iI]a|Cx|QX/i,                   desc: "CIRUGIA" },
+      { re: /laparoscop[iI]a|LAP/i,                      desc: "LAPAROSCOPIA" },
+      { re: /biopsia|Bx/i,                               desc: "BIOPSIA" },
+      { re: /puncion lumbar|PL/i,                         desc: "PUNCION LUMBAR" },
+      { re: /VEDA|video endoscopia/i,                     desc: "VIDEO ENDOSCOPIA DIGESTIVA ALTA" },
+      { re: /colonoscopia|VCC/i,                          desc: "VIDEO COLONOSCOPIA" },
+      { re: /ecocardiograma|ECOCG/i,                     desc: "ECOCARDIOGRAMA" },
+      { re: /holter/i,                                    desc: "HOLTER" },
+      { re: /ergometr[iI]a|prueba de esfuerzo/i,               desc: "ERGOMETRIA" },
+      { re: /espirometr[iI]a|PFR/i,                      desc: "ESPIROMETRIA" },
+      { re: /densitometr[iI]a/i,                               desc: "DENSITOMETRIA OSEA" },
+      { re: /mamograf[iI]a/i,                                  desc: "MAMOGRAFIA" },
+      { re: /papanicolau|PAP/i,                          desc: "PAPANICOLAU" },
+      { re: /electromiograf[iI]a|EMG/i,                  desc: "ELECTROMIOGRAFIA" },
+      { re: /electroencefalograma|EEG/i,                 desc: "ELECTROENCEFALOGRAMA" },
+    ];
+    var practicas = []; var vistos = {};
+    for (var i = 0; i < PROCS.length; i++) {
+      var p = PROCS[i];
+      if (p.re.test(texto) && !vistos[p.desc]) {
+        vistos[p.desc] = true;
+        practicas.push({ descripcion: p.desc, descripcion_original: p.desc,
+          cantidad: 1, codigo_sugerido: null, nomenclador: null, confianza: 0.6,
+          prestador_ejecutor: null });
+      }
+    }
+    return practicas;
   }
 
   async _cleanupTempFile(filePath) {

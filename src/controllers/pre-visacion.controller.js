@@ -151,7 +151,7 @@ class PreVisacionController {
   async obtenerPreVisacion(req, res) {
     try {
       const { id } = req.params;
-      const preVisacion = await preVisacionService.obtenerPreVisacion(parseInt(id));
+      const preVisacion = await preVisacionService.obtenerPreVisacion(parseInt(id), req.tenantId || null);
 
       return res.status(200).json({
         status: 'success',
@@ -170,6 +170,7 @@ class PreVisacionController {
   async listarPendientes(req, res) {
     try {
       const filtros = {
+        estado: req.query.estado,
         requiere_revision: req.query.requiere_revision === 'true' ? true :
           req.query.requiere_revision === 'false' ? false : undefined,
         desde: req.query.desde,
@@ -177,7 +178,7 @@ class PreVisacionController {
         ci_paciente: req.query.ci_paciente
       };
 
-      const pendientes = await preVisacionService.listarPendientes(filtros);
+      const pendientes = await preVisacionService.listarPendientes(filtros, req.tenantId || null);
 
       return res.status(200).json({
         status: 'success',
@@ -307,7 +308,7 @@ class PreVisacionController {
 
   async obtenerEstadisticas(req, res) {
     try {
-      const stats = await preVisacionService.obtenerEstadisticas();
+      const stats = await preVisacionService.obtenerEstadisticas(req.tenantId || null);
 
       return res.status(200).json({
         status: 'success',
