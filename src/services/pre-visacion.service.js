@@ -122,6 +122,7 @@ class PreVisacionService {
               cantidad: practica.cantidad || 1,
               nomenclador_sugerido: matchesNomen[0] ? {
                 id_nomenclador: matchesNomen[0].id_nomenclador,
+                id_externo: matchesNomen[0].id_externo,
                 descripcion: matchesNomen[0].descripcion,
                 especialidad: matchesNomen[0].especialidad,
                 grupo: matchesNomen[0].grupo,
@@ -130,6 +131,7 @@ class PreVisacionService {
               confianza: matchesNomen[0]?.similitud_combinada || 0,
               matches_alternativos: matchesNomen.slice(1, 6).map(m => ({
                 id_nomenclador: m.id_nomenclador,
+                id_externo: m.id_externo,
                 descripcion: m.descripcion,
                 especialidad: m.especialidad,
                 similitud: m.similitud_combinada,

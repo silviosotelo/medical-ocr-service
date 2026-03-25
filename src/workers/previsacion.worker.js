@@ -58,7 +58,7 @@ class PrevisacionWorker {
         contextoRAG,
       });
 
-      // 3b. Fallback: extraer practicas narrativas si GPT-4o devolvio practicas vacias
+      // 3b. Fallback: extraer practicas narrativas si GPT-4o devolvio practicas vacías
       if (!resultadoIA.practicas || resultadoIA.practicas.length === 0) {
         var textoObs = (resultadoIA.observaciones_ia && resultadoIA.observaciones_ia.texto_completo) || "";
         var practicasNarrativa = this._extraerPracticasNarrativa(textoObs);
@@ -142,7 +142,8 @@ class PrevisacionWorker {
           descripcion_original: d.descripcion,
           cantidad: d.nomenclador?.cantidad || 1,
           nomenclador_sugerido: d.nomenclador ? {
-            id_nomenclador: d.nomenclador.id_nomenclador || null,
+            id_nomenclador: d.nomenclador.id_externo || null,
+            id_externo: d.nomenclador.id_externo || null,
             descripcion: d.nomenclador.descripcion || null,
             especialidad: d.nomenclador.especialidad || null,
             grupo: d.nomenclador.grupo || null,
